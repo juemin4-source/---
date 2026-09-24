@@ -1,9 +1,8 @@
 import Phaser from "phaser";
-import { LevelScene } from "./LevelScene";
-import { ExpeditionScene } from "./ExpeditionScene";
-import { SliceScene } from "./slice/SliceScene";
-import "./style.css";
-import "./expedition.css";
+import { SliceScene } from "./game/SliceScene";
+import "./styles/base.css";
+import "./styles/panels.css";
+
 new Phaser.Game({
   type: Phaser.AUTO,
   parent: "game",
@@ -12,9 +11,5 @@ new Phaser.Game({
   backgroundColor: "#10181c",
   antialias: true,
   scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH },
-  scene: new URLSearchParams(location.search).has("combat")
-    ? LevelScene
-    : new URLSearchParams(location.search).has("legacy")
-      ? ExpeditionScene
-      : SliceScene,
+  scene: SliceScene,
 });

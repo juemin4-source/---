@@ -1,6 +1,6 @@
 import { expect, it } from "vitest";
-import { World } from "../src/World";
-import { idleControls } from "../src/Player";
+import { World } from "../src/engine/World";
+import { idleControls } from "../src/engine/Player";
 it("moves, brakes, jumps, dashes and fires while moving", () => {
   const w = new World(),
     c = idleControls();

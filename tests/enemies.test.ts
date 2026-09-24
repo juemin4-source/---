@@ -1,8 +1,8 @@
 import { expect, it } from "vitest";
-import { World } from "../src/World";
-import { EnemyModule } from "../src/EnemyModule";
-import { idleControls } from "../src/Player";
-import { Projectile } from "../src/Projectile";
+import { World } from "../src/engine/World";
+import { EnemyModule } from "../src/engine/EnemyModule";
+import { idleControls } from "../src/engine/Player";
+import { Projectile } from "../src/engine/Projectile";
 it("floater loses lift when the propulsion organ is detached", () => {
   const w = new World();
   w.enemies = [];

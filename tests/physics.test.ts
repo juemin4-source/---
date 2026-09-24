@@ -1,9 +1,9 @@
 import { expect, it } from "vitest";
-import { World } from "../src/World";
-import { EnemyModule } from "../src/EnemyModule";
-import { Projectile } from "../src/Projectile";
-import { idleControls } from "../src/Player";
-import { updateModules } from "../src/ModuleSystems";
+import { World } from "../src/engine/World";
+import { EnemyModule } from "../src/engine/EnemyModule";
+import { Projectile } from "../src/engine/Projectile";
+import { idleControls } from "../src/engine/Player";
+import { updateModules } from "../src/engine/ModuleSystems";
 const lab = () => {
   const w = new World();
   w.enemies = [];

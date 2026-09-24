@@ -1,6 +1,6 @@
 import { expect, it } from "vitest";
-import { World } from "../src/World";
-import { idleControls } from "../src/Player";
+import { World } from "../src/engine/World";
+import { idleControls } from "../src/engine/Player";
 it("five rooms advance through gates and elite death completes campaign", () => {
   const w = new World(true);
   w.god = true;

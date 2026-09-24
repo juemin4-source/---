@@ -1,7 +1,7 @@
 import { expect, it } from "vitest";
-import { World } from "../src/World";
-import { idleControls } from "../src/Player";
-import { EnemyModule } from "../src/EnemyModule";
+import { World } from "../src/engine/World";
+import { idleControls } from "../src/engine/Player";
+import { EnemyModule } from "../src/engine/EnemyModule";
 it("melee detaches a usable module without killing its core", () => {
   const w = new World(),
     m = w.modules[0],

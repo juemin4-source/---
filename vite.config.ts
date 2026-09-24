@@ -2,13 +2,7 @@ import { defineConfig } from "vite";
 export default defineConfig({
   server: {
     watch: {
-      ignored: [
-        "**/.playwright-cli/**",
-        "**/output/**",
-        "**/dist/**",
-        "**/scripts/**",
-        "**/tests/**",
-      ],
+      ignored: ["**/.playwright-cli/**", "**/output/**", "**/dist/**", "**/scripts/**", "**/tests/**"],
     },
   },
   build: {

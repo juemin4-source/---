@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { World } from "../src/World";
-import { updateEnemies } from "../src/EnemySystems";
-import { idleControls } from "../src/Player";
+import { World } from "../src/engine/World";
+import { updateEnemies } from "../src/engine/EnemySystems";
+import { idleControls } from "../src/engine/Player";
 
 const dt = 1 / 120;
 function encounter(exploration = true) {

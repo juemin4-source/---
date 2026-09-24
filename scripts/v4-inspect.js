@@ -1,1 +1,0 @@
-async(page)=>page.evaluate(()=>{const e=blackSun.expedition;return {mode:blackSun.mode,zone:e.zoneId,p:{x:e.world.player.x,y:e.world.player.y,hp:e.world.player.hp},cargo:e.cargo,message:e.message,interaction:e.interaction(),enemies:e.world.enemies.filter(n=>!n.dead).map(n=>({x:n.x,y:n.y,kind:n.kind})),shortcuts:e.profile.shortcuts};})

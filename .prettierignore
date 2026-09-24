@@ -1,0 +1,8 @@
+output/
+dist/
+node_modules/
+.playwright-cli/
+art/
+package-lock.json
+*.md
+*.txt

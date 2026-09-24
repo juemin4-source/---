@@ -1,6 +1,6 @@
 {
   "name": "black-sun-prototype",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -8,12 +8,15 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview --host 127.0.0.1",
     "test": "vitest run",
-    "test:slice": "vitest run tests/slice.test.ts tests/slice-training.test.ts tests/ascent.test.ts tests/unlimited.test.ts"
+    "typecheck": "tsc --noEmit",
+    "format": "prettier --write .",
+    "check": "tsc --noEmit && prettier --check . && vitest run"
   },
   "dependencies": {
     "phaser": "3.90.0"
   },
   "devDependencies": {
+    "prettier": "^3.9.9",
     "typescript": "~5.9.3",
     "vite": "^7.3.0",
     "vitest": "^3.2.4"
