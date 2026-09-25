@@ -5,14 +5,14 @@ import { chromium } from "playwright-core";
 const seconds = Number(process.argv[2] ?? 90);
 const mode = process.argv[3] ?? "unlimited";
 const god = process.argv[4] !== "mortal";
+const pickIds = (source) => {
+  const block = source.slice(source.indexOf("export const organs"), source.indexOf("export const organIds"));
+  return [...block.matchAll(/^ {2}([a-zA-Z]+): \{/gm)].map((m) => m[1]);
+};
+const organIds = pickIds(await (await import("node:fs/promises")).readFile("src/game/config.ts", "utf8"));
 // The six-slot mode cannot hold all 28 organs, so it gets a realistic mixed build instead.
-const grantIds =
-  mode === "six"
-    ? ["mark", "conduit", "spread", "speed", "leech", "heavyArea"]
-    : ((await (await import("node:fs/promises")).readFile("src/game/config.ts", "utf8"))
-        .match(/organIds = \[[^\]]*\]/s)?.[0]
-        .match(/"[a-zA-Z]+"/g)
-        ?.map((s) => s.slice(1, -1)) ?? []);
+const grantIds = mode === "six" ? ["mark", "conduit", "spread", "speed", "leech", "heavyArea"] : organIds;
+if (!organIds.length) throw new Error("could not read organ ids from config.ts");
 const browser = await chromium.launch({ channel: "chrome", headless: true });
 const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
 const errors = [];
