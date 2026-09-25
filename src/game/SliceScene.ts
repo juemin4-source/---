@@ -468,7 +468,7 @@ export class SliceScene extends Phaser.Scene {
       p = this.world.player;
     cam.setZoom(1 + juice.zoom);
     // Base scroll is smoothed on its own so camera shake never feeds back into the follow.
-    if (this.world.ascent) {
+    if (this.world.ascent || this.world.expedition) {
       this.baseScrollX = Phaser.Math.Linear(
         this.baseScrollX,
         Phaser.Math.Clamp(p.x - 640, 0, this.world.width - 1280),

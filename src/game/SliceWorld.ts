@@ -9,6 +9,7 @@ import type { WeaponId, SecondaryId } from "./config";
 import { Ascent } from "./Ascent";
 import { Expedition } from "./expedition/Expedition";
 import { districts } from "./expedition/ExpeditionMap";
+import { surfaceUnder } from "./expedition/ExpeditionGeometry";
 import { Armory } from "./Armory";
 import { Juice, feel } from "./Juice";
 import { OrganLoadout } from "./OrganLoadout";
@@ -831,7 +832,13 @@ export class SliceWorld extends World {
           this.drops.push({
             id: this.nextDrop++,
             x: clamp(e.x + (i - (e.organs.uniqueCount - 1) / 2) * 30, 45, this.width - 45),
-            y: this.ascent ? this.ascent.ground(e.x, e.y) - 24 : 585,
+            // Drops must land on whatever surface is actually under the body. 585 is the legacy 0.9
+            // arena floor and would strand organs far above the expedition map.
+            y: this.ascent
+              ? this.ascent.ground(e.x, e.y) - 24
+              : this.expedition
+                ? (surfaceUnder(this.platforms, e.x, e.y) ?? e.y)
+                : 585,
             organ,
             stacks: stacks > 1 ? stacks : undefined,
           });
@@ -1009,7 +1016,10 @@ export class SliceWorld extends World {
       e.vy = clamp((e.homeY + Math.sin(this.time * 2 + e.id) * 22 - e.y) * 3, -140, 140);
     const incoming = e.vx;
     integrate(e, dt, this.platforms, e.kind === "floater" ? 0 : 1650);
-    if (!this.ascent && e.y + e.h / 2 > 611 && e.vy >= 0) {
+    // Legacy 0.9 arena floor clamp. It must NOT run on a 0.10 expedition: the expedition has no
+    // ascent, and this was teleporting every creature up to y≈590 the moment it spawned, so the
+    // whole world appeared empty. Expeditions use real platform collision instead.
+    if (!this.ascent && !this.expedition && e.y + e.h / 2 > 611 && e.vy >= 0) {
       e.y = 610 - e.h / 2;
       e.vy = 0;
       e.grounded = true;

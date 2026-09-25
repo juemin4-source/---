@@ -103,8 +103,67 @@ export class Ecology {
       alert: 0,
       spawned: 0,
     }));
-    // Every nest starts with one resident body so the map is never empty on arrival.
-    for (const n of this.nests) this.spawn(n, "scavenger");
+    // Every nest starts with a couple of resident bodies so the map is never empty on arrival.
+    for (const n of this.nests) {
+      this.spawn(n, "scavenger");
+      this.spawn(n);
+    }
+    // Roamers: bodies not bound to any nest. Nests only exist in five districts, so without these
+    // the starting airlock and several other districts are permanently empty and the world reads as
+    // dead exactly where the player first looks. Their roles are dealt round-robin rather than
+    // rolled, so seeding them cannot tip the role cycle toward whichever role is rolled luckiest.
+    let seedRole = 0;
+    const seededRoles: Role[] = ["scavenger", "hunter", "floater"];
+    for (const d of districts) {
+      const here = this.creatures.filter((c) => c.alive && c.district === d.id).length;
+      for (let i = here; i < 2; i++) this.spawnRoamer(d.id, seededRoles[seedRole++ % seededRoles.length]);
+    }
+  }
+
+  /** A nestless body: it wanders its district and can drift to neighbours. */
+  spawnRoamer(district: DistrictId, role?: Role, stage: Stage = "juvenile") {
+    if (this.creatures.filter((c) => c.alive).length >= GLOBAL_POP_CAP) return null;
+    const def = this.rng.pick(nestDefs);
+    const chosen = role ?? this.rng.weighted(def.lean);
+    const body = ROLE_BODY[chosen];
+    const d = districtById[district];
+    const c: EcoCreature = {
+      id: this.nextCreature,
+      name: "",
+      role: chosen,
+      kind: body.kind,
+      weapon: body.weapon,
+      secondary: body.secondary,
+      stage,
+      biomass: STAGE_BIOMASS[stage],
+      x: d.x + this.rng.range(60, Math.max(80, d.w - 60)),
+      y: d.floor - 24,
+      district,
+      home: `roam-${district}`,
+      homeDistrict: district,
+      organs: new OrganLoadout(),
+      intent: "patrol",
+      intentTime: 0,
+      hunger: 0.3,
+      target: null,
+      remainsTarget: null,
+      migratePath: null,
+      migrateMotive: "",
+      alive: true,
+      isApex: stage === "apex",
+      bornAt: this.time,
+      hp: 0,
+      maxHp: 0,
+      near: false,
+    };
+    c.name = `${c.kind}-${String(c.id).padStart(2, "0")}`;
+    c.organs.add(this.rng.pick(def.organPool), 1);
+    if (stage !== "juvenile") c.organs.add(this.rng.pick(def.organPool), 1);
+    this.creatures.push(c);
+    this.nextCreature++;
+    this.refreshStats(c);
+    this.metrics.creaturesSpawned++;
+    return c;
   }
 
   // ── creation ────────────────────────────────────────────────────────────────
@@ -160,7 +219,10 @@ export class Ecology {
   /** Derived combat stats. Recomputed whenever stage or organs change; never scaled by elapsed time. */
   refreshStats(c: EcoCreature) {
     const layers = c.organs.totalLayers;
-    const stage: Stage = stageOf(c.biomass);
+    // Only nest-born bodies grow up. Roamers exist so the map is never empty where the player
+    // starts, but an apex must be a real individual with a lineage — letting a wanderer top the
+    // food chain would break that, and the apex record says where it came from.
+    const stage: Stage = c.home.startsWith("nest-") ? stageOf(c.biomass) : "juvenile";
     if (stage !== c.stage) this.evolve(c, stage);
     c.maxHp = Math.round(BASE_HP[c.kind] * STAGE_HP[c.stage] * (1 + 0.04 * layers));
     c.hp = Math.min(c.maxHp, Math.max(1, c.hp));
@@ -471,7 +533,7 @@ export class Ecology {
 
   /** Districts directly reachable from this one, cached — this defines the food web's edges. */
   private adjacentCache = new Map<DistrictId, DistrictId[]>();
-  private adjacent(id: DistrictId): DistrictId[] {
+  adjacent(id: DistrictId): DistrictId[] {
     const hit = this.adjacentCache.get(id);
     if (hit) return hit;
     const out = links

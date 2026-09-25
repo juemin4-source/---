@@ -35,7 +35,14 @@ export class SumpBackdrop {
     const cam = this.scene.cameras.main,
       sx = cam.scrollX,
       sy = cam.scrollY;
-    const active = w.height === 3300 && w.width === 3000 && !!this.image;
+    // The parallax image is a backdrop for any large scrollable map, not just the 0.9 tower: it is
+    // overscanned and positioned from the camera, so it works at any world size. Only the small
+    // fixed-size arena/zone maps opt out.
+    const bigMap = w.width >= 2000 && w.height >= 2000;
+    const active = bigMap && !!this.image;
+    // Tower-only props are authored against the tower's exact geometry, so they must not be drawn
+    // on the expedition map where those coordinates mean nothing.
+    const tower = w.width === 3000 && w.height === 3300;
     this.image?.setVisible(active);
     this.foreground.clear();
     if (!active) return false;
@@ -50,7 +57,7 @@ export class SumpBackdrop {
     g.fillRect(sx, sy, viewW, viewH);
 
     // Near service piers: larger, darker and differently spaced from the distant architecture.
-    for (const x of [620, 1415, 1660, 2445]) {
+    for (const x of tower ? [620, 1415, 1660, 2445] : []) {
       g.fillStyle(0x0e1b29, 0.88);
       g.fillRect(x, 400, 28, 2740);
       g.fillStyle(0x425466, 0.75);
@@ -69,10 +76,12 @@ export class SumpBackdrop {
       }
     }
     // Recessed pump station at the entrance; quiet centre is reserved for combat.
-    for (const [x, y, width] of [
-      [660, 2870, 420],
-      [1880, 2700, 440],
-    ]) {
+    for (const [x, y, width] of tower
+      ? ([
+          [660, 2870, 420],
+          [1880, 2700, 440],
+        ] as const)
+      : []) {
       g.fillStyle(0x0d1c2a, 0.86);
       g.fillRoundedRect(x, y, width, 230, 8);
       g.lineStyle(5, 0x263e50);
@@ -92,7 +101,14 @@ export class SumpBackdrop {
     }
     // Support actual platforms rather than inventing decorative ledges players cannot use.
     for (const p of w.platforms) {
-      if (p.y < 2400 || p.y > 3100 || p.w < 100 || p.h > 45 || Math.abs(p.y - (sy + viewH / 2)) > viewH)
+      if (
+        !tower ||
+        p.y < 2400 ||
+        p.y > 3100 ||
+        p.w < 100 ||
+        p.h > 45 ||
+        Math.abs(p.y - (sy + viewH / 2)) > viewH
+      )
         continue;
       const pier = [634, 1429, 1674, 2459].reduce((best, x) =>
         Math.abs(x - p.x) < Math.abs(best - p.x) ? x : best,
@@ -109,36 +125,41 @@ export class SumpBackdrop {
       g.fillCircle(pier, top + 76, 3);
     }
 
-    // Warm airlock pool has a real source at the existing door, not a full-screen wash.
-    g.fillStyle(0xe8b47a, 0.045);
-    g.fillEllipse(900, 3080, 520, 250);
-    g.fillStyle(0xe8b47a, 0.06);
-    g.fillEllipse(900, 3075, 300, 180);
-    // Ground below the actual 3120 walkway becomes a dark sump, not a second fake floor.
-    g.fillStyle(0x08121e);
-    g.fillRect(0, 3140, w.width, 160);
-    for (let k = 0; k < 18; k++) {
-      const x = 650 + k * 115 + Math.sin(w.time * 0.45 + k) * 5;
-      g.lineStyle(1, k < 3 ? 0x9e815c : 0x486b81, 0.24);
-      g.lineBetween(x, 3160 + (k % 4) * 15, x + 38 + (k % 3) * 16, 3160 + (k % 4) * 15);
+    // Warm airlock pool and the tower's own sump waterline: tower-authored coordinates.
+    if (tower) {
+      g.fillStyle(0xe8b47a, 0.045);
+      g.fillEllipse(900, 3080, 520, 250);
+      g.fillStyle(0xe8b47a, 0.06);
+      g.fillEllipse(900, 3075, 300, 180);
+      // Ground below the actual 3120 walkway becomes a dark sump, not a second fake floor.
+      g.fillStyle(0x08121e);
+      g.fillRect(0, 3140, w.width, 160);
     }
+    if (tower)
+      for (let k = 0; k < 18; k++) {
+        const x = 650 + k * 115 + Math.sin(w.time * 0.45 + k) * 5;
+        g.lineStyle(1, k < 3 ? 0x9e815c : 0x486b81, 0.24);
+        g.lineBetween(x, 3160 + (k % 4) * 15, x + 38 + (k % 3) * 16, 3160 + (k % 4) * 15);
+      }
     // Foreground is world anchored and confined outside the traversable entrance.
     const fg = this.foreground;
     // Reflections sit on top of the solid floor's dark fascia, below all landing edges.
-    for (let k = 0; k < 14; k++) {
-      const x = 650 + k * 120 + Math.sin(w.time * 0.45 + k) * 4;
-      fg.lineStyle(1, k < 3 ? 0xb29665 : 0x58788a, 0.22);
-      fg.lineBetween(x, 3158 + (k % 3) * 17, x + 30 + (k % 4) * 12, 3158 + (k % 3) * 17);
-    }
-    for (const x of [270, 2750]) {
-      const alpha = Math.abs(w.player.x - (x + 27)) < 95 && w.player.y > 2720 ? 0.12 : 1;
-      fg.fillStyle(0x070e18, alpha);
-      fg.fillRect(x, 2780, 54, 520);
-      fg.fillStyle(0x1b2b37, alpha);
-      fg.fillRect(x + 6, 2780, 5, 520);
-      for (const y of [2840, 2990, 3200]) {
-        fg.fillStyle(0x060c13, alpha);
-        fg.fillRect(x - 8, y, 70, 20);
+    if (tower) {
+      for (let k = 0; k < 14; k++) {
+        const x = 650 + k * 120 + Math.sin(w.time * 0.45 + k) * 4;
+        fg.lineStyle(1, k < 3 ? 0xb29665 : 0x58788a, 0.22);
+        fg.lineBetween(x, 3158 + (k % 3) * 17, x + 30 + (k % 4) * 12, 3158 + (k % 3) * 17);
+      }
+      for (const x of [270, 2750]) {
+        const alpha = Math.abs(w.player.x - (x + 27)) < 95 && w.player.y > 2720 ? 0.12 : 1;
+        fg.fillStyle(0x070e18, alpha);
+        fg.fillRect(x, 2780, 54, 520);
+        fg.fillStyle(0x1b2b37, alpha);
+        fg.fillRect(x + 6, 2780, 5, 520);
+        for (const y of [2840, 2990, 3200]) {
+          fg.fillStyle(0x060c13, alpha);
+          fg.fillRect(x - 8, y, 70, 20);
+        }
       }
     }
     return true;

@@ -297,17 +297,19 @@ export class Expedition {
       p = w.player;
     const ctx: EcoContext = { player: { x: p.x, y: p.y, district: this.district }, open: this.open };
     this.eco.update(dt, ctx);
-    // Spawn: a creature within the near radius becomes a real Carrier, so the same ecology runs
-    // whether or not the player is looking at it.
+    // Spawn: a creature near the player becomes a real Carrier, so the same ecology runs whether or
+    // not the player is looking at it. Neighbouring districts are included deliberately: the airlock
+    // is a safe zone with no nest, so without this the player spawns into an apparently dead world.
+    const visible = new Set<DistrictId>([this.district, ...this.eco.adjacent(this.district)]);
     for (const c of this.eco.alive) {
       if (this.live.has(c.id)) continue;
-      if (c.district !== this.district) continue;
-      if (distance(c, p) > 1500) continue;
+      if (!visible.has(c.district)) continue;
+      if (distance(c, p) > 1800) continue;
       const e = this.makeEnemy(c, c.district);
       this.live.set(c.id, e);
       w.enemies.push(e);
     }
-    // Despawn: leaving the district hands the body back to the simulation, keeping its organs.
+    // Despawn: leaving the neighbourhood hands the body back to the simulation, keeping its organs.
     for (const [id, carrier] of [...this.live]) {
       const c = this.eco.creatures.find((o) => o.id === id);
       if (!c || !c.alive) {
@@ -316,7 +318,7 @@ export class Expedition {
         w.enemies = w.enemies.filter((e) => e !== carrier);
         continue;
       }
-      if (c.district !== this.district || distance(c, p) > 1900) {
+      if (!visible.has(c.district) || distance(c, p) > 2200) {
         this.live.delete(id);
         if (!carrier.dead) {
           c.hp = Math.max(1, carrier.hp);
