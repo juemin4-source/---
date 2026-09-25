@@ -248,7 +248,8 @@ export class SliceWorld extends World {
     // The 0.10 expedition: authored map, living ecosystem, loot and two extractors.
     this.expedition = new Expedition(this, seed, (c, district) => {
       const d = districts.find((x) => x.id === district)!;
-      const e = new Carrier(c.kind, c.x, d.floor - 24, c.organs.toJSON(), 1);
+      const e = new Carrier(c.kind, c.x, d.floor, c.organs.toJSON(), 1);
+      // y is then corrected to rest the body on the floor surface.
       e.y = d.floor - e.h / 2;
       e.homeY = e.y;
       e.hp = e.maxHp = c.hp;

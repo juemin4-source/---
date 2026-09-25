@@ -5,9 +5,13 @@ import { districts, nestDefs, type DistrictId } from "./ExpeditionMap";
  * Search points, extractors and shortcuts are authored: a repeat run can be learned rather than
  * memorised randomly. Positions are fractions of a district, so bounds can be tweaked safely.
  */
+/** A standing player's centre sits this far above the floor surface; props must match it or the
+ *  player can never reach them. Kept in sync with the player body (48 tall, 12px into the floor). */
+const STAND_Y = 36;
+export const STAND_HEIGHT = STAND_Y;
 const fr = (d: DistrictId, fx: number) => {
   const dd = districts.find((x) => x.id === d)!;
-  return { x: dd.x + dd.w * fx, y: dd.floor - 20 };
+  return { x: dd.x + dd.w * fx, y: dd.floor - STAND_Y };
 };
 
 interface SearchDef {
@@ -209,5 +213,5 @@ export const shortcutDefs = [
 
 export const nestPositions = nestDefs.map((n) => {
   const d = districts.find((x) => x.id === n.district)!;
-  return { ...n, y: d.floor - 20 };
+  return { ...n, y: d.floor - STAND_Y };
 });

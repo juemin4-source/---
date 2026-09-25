@@ -182,6 +182,9 @@ export class SliceScene extends Phaser.Scene {
     if (action === "start") this.start(false, this.started && this.world.unlimited);
     if (action === "start-six") this.start();
     if (action === "start-unlimited") this.start(false, true);
+    // 0.10: the ecosystem expedition, available in both slot modes.
+    if (action === "start-expedition") this.start(false, false);
+    if (action === "start-expedition-unlimited") this.start(false, true);
     if (action === "train") this.start(true, this.started && this.world.training && this.world.unlimited);
     if (action === "train-unlimited") this.start(true, true);
     if (action === "recommend") {
