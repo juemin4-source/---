@@ -1,0 +1,59 @@
+/* Art sample: present the existing HUD with the heroine's restrained black / white / crimson palette. */
+.slice-app .slice-top {
+  background: linear-gradient(180deg, #11151de6, #11151d00);
+  color: #f2edf0;
+  border-bottom-color: #79839522;
+}
+.slice-app .slice-top b {
+  color: #f4edf0;
+}
+.slice-app .slice-top b span {
+  color: #b48f9e;
+}
+.slice-app .slice-zone h2 {
+  color: #e4e4e9;
+}
+.slice-app .slice-zone {
+  text-shadow: 0 2px 5px #070a12;
+}
+.slice-app .slice-vitals {
+  padding: 12px 14px;
+  background: linear-gradient(110deg, #141923ed, #1419239c);
+  border-top: 2px solid #a14e69;
+  border-bottom: 1px solid #71809344;
+  border-radius: 2px;
+}
+.slice-app .slice-vitals b {
+  color: #f0e6ec;
+}
+.slice-app .slice-health {
+  background: #302532;
+}
+.slice-app .slice-health i {
+  background: linear-gradient(90deg, #964b69, #e4a8bb);
+}
+.slice-app .slice-bottom {
+  background: linear-gradient(0deg, #10151bf0, #10151b00);
+}
+.slice-app .slice-slot {
+  background: #171d27c9;
+  border-color: #7a879b42;
+}
+.slice-app .slice-prompt {
+  color: #eed3ae;
+  text-shadow: 0 2px 5px #000;
+}
+.slice-app .slice-panel {
+  background: #141a24f5;
+  border-color: #6f788950;
+}
+.slice-app .slice-primary {
+  background: #d9b6c4;
+  color: #201821;
+}
+.slice-app .slice-primary:hover {
+  background: #efd0dc;
+}
+.slice-app .slice-secondary {
+  border-color: #69778b66;
+}

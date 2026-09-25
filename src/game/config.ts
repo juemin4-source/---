@@ -91,7 +91,7 @@ export const organs = {
     name: "浮游鳍",
     tag: "空杀 → 凌空跳",
     color: "#9cd8cb",
-    description: "空中击杀得到凌空跳次数，储存上限等于层数；空中按 Space 消耗一次。",
+    description: "基础二段跳之外，空中击杀获得额外凌空跳，储存上限等于层数；基础空跳用完后按 Space 消耗。",
   },
   hot: {
     name: "灼心腺",

@@ -261,36 +261,19 @@ export class Ascent {
   }
   render(art: Renderer) {
     const g = art.g;
+    // Wall signage is secondary to combat; no debug region rectangles in the art sample.
     for (const d of districts) {
-      g.fillStyle(d.color, 0.055);
-      g.fillRect(d.x, d.y, d.w, d.h);
-      g.lineStyle(2, d.color, 0.4);
-      g.strokeRect(d.x, d.y, d.w, d.h);
-      art.label("district-" + d.id, d.x + 20, d.y + 22, d.name, "#91aaa2", 26);
-      art.label("district-note-" + d.id, d.x + 22, d.y + 59, d.note, "#76918b", 12);
-      // Local machinery and root silhouettes anchor each habitat visually.
-      if (["pump", "forge", "cold"].includes(d.id)) {
-        g.lineStyle(9, d.color, 0.22);
-        g.strokeCircle(d.x + 240, d.y + 190, 90);
-        g.lineBetween(d.x + 40, d.y + 190, d.x + 440, d.y + 190);
-      }
-      if (["roots", "colony", "glass"].includes(d.id))
-        for (let i = 0; i < 6; i++) {
-          g.lineStyle(7, d.color, 0.23);
-          g.lineBetween(d.x + 90 + i * 150, d.y + 100, d.x + 130 + i * 150, d.y + d.h);
-          g.strokeCircle(d.x + 90 + i * 150, d.y + 150, 30);
-        }
+      const x = d.x + 30,
+        y = d.y + 35;
+      g.fillStyle(0x151d29, 0.8);
+      g.fillRect(x, y, 170, 34);
+      g.fillStyle(0x9a7e65, 0.6);
+      g.fillRect(x, y, 3, 34);
+      art.label("district-" + d.id, x + 14, y + 9, d.name, "#8d98a5", 14);
     }
-    g.lineStyle(2, 0x82b8a3, 0.3);
-    g.lineBetween(1480, 1020, 1480, 3120);
-    g.lineBetween(1640, 1020, 1640, 3120);
     for (const site of sites) {
-      const done = this.opened.has(site.id),
-        color = site.kind === "medical" ? 0x8cc8ac : site.kind === "lift" ? 0x83bbda : 0xe7bb79;
-      g.fillStyle(color, done ? 0.12 : 0.6);
-      g.fillRoundedRect(site.x - 17, site.y - 12, 34, 32, 4);
-      g.lineStyle(2, color, 0.7);
-      g.strokeRect(site.x - 17, site.y - 12, 34, 32);
+      const done = this.opened.has(site.id);
+      art.skin.fixture(g, site.x, site.y, site.kind, done);
       if (distance(site, this.w.player) < 600)
         art.label(
           "site-" + site.id,
@@ -311,8 +294,7 @@ export class Ascent {
       if (!e.dead && h?.nest && !this.opened.has(h.nest) && !this.awakened.has(e.id))
         art.label("nest-" + e.id, e.x - 35, e.y - 75, "休眠守卫", "#c5b68d", 12);
     }
-    g.lineStyle(3, 0x9cdec1);
-    g.strokeRect(820, 3020, 160, 100);
+    art.skin.airlock(g, 820, 3020);
     art.label("ascent-exit", 800, 2990, "沉井气闸 · 按住 E 撤离", "#b7dfc9", 15);
     if (this.w.extraction > 0) {
       g.fillStyle(0xb7dfc9);

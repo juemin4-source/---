@@ -1,24 +1,30 @@
 import Phaser from "phaser";
-import { enemyBands, bodyNames } from "./CombatBalance";
+import { ArtDirection } from "./ArtDirection";
+import { enemyBands } from "./CombatBalance";
 import { moduleInfo, type EnemyModule } from "./EnemyModule";
 import type { World } from "./World";
 import { distance } from "./PhysicsHelpers";
 
 const C = {
-  bg: 0x10191d,
-  grid: 0x203038,
-  line: 0x405452,
   mint: 0xb6f3d3,
   cream: 0xf1e7c8,
   red: 0xff7284,
 };
 export class Renderer {
   g: Phaser.GameObjects.Graphics;
+  skin: ArtDirection;
+  private viewWorld?: World;
   labels = new Map<string, Phaser.GameObjects.Text>();
   constructor(private scene: Phaser.Scene) {
     this.g = scene.add.graphics();
+    this.skin = new ArtDirection(scene);
   }
   label(id: string, x: number, y: number, text: string, color = "#69827e", size = 12) {
+    const w = this.viewWorld;
+    if (w && /^(weapon-|hp-|carrier-)/.test(id)) {
+      const reach = id.startsWith("carrier-") ? 600 : 260;
+      if (distance(w.player, { x, y }) > reach) return;
+    }
     let t = this.labels.get(id);
     if (!t) {
       t = this.scene.add.text(x, y, text, {
@@ -26,61 +32,18 @@ export class Renderer {
         fontSize: size,
         color,
       });
+      t.setDepth(3);
       this.labels.set(id, t);
     }
     t.setPosition(x, y).setText(text).setColor(color).setFontSize(size).setVisible(true);
   }
   render(w: World, hitboxes: boolean, mx: number, my: number) {
+    this.viewWorld = w;
     for (const t of this.labels.values()) t.setVisible(false);
     const g = this.g;
     g.clear();
-    g.fillStyle(C.bg);
-    g.fillRect(0, 0, w.width, w.height);
-    g.lineStyle(1, C.grid, 0.5);
-    for (let x = 0; x < w.width; x += 64) g.lineBetween(x, 0, x, w.height);
-    for (let y = 100; y < w.height; y += 64) g.lineBetween(0, y, w.width, y);
-    // Architectural silhouettes, eclipse and instrumentation are all procedural.
-    g.fillStyle(0x182428);
-    g.fillCircle(984, 272, 117);
-    g.lineStyle(1, 0x52645a, 0.4);
-    g.strokeCircle(984, 272, 119);
-    g.fillStyle(0x111a1e);
-    g.fillCircle(1000, 257, 111);
-    g.lineStyle(1, 0x34463f, 0.45);
-    g.lineBetween(840, 272, 1125, 272);
-    g.lineBetween(984, 132, 984, 410);
-    for (let i = 0; i < Math.ceil(w.width / 156); i++) {
-      const x = 20 + i * 156,
-        h = 75 + ((i * 67) % 150);
-      g.fillStyle(0x152226);
-      g.fillRect(x, 610 - h, 66, h);
-      g.lineStyle(1, 0x253638);
-      g.strokeRect(x + 8, 610 - h + 10, 50, h - 10);
-    }
-    this.label("roommark", 65, 218, `0${w.roomIndex + 1}`, "#22352f", 116);
-    this.label("sector", 72, 341, "XING-HAI / FIELD TEST", "#3f5750", 11);
-    g.lineStyle(1, 0x4a5c52, 0.6);
-    g.lineBetween(72, 371, 286, 371);
-    for (let i = 0; i < w.platforms.length; i++) {
-      const r = w.platforms[i],
-        left = r.x - r.w / 2,
-        top = r.y - r.h / 2;
-      g.fillStyle(0x263331);
-      g.fillRect(left, top, r.w, r.h);
-      g.fillStyle(0x789080);
-      g.fillRect(left, top, r.w, 3);
-      g.lineStyle(1, 0x3b4a42);
-      g.strokeRect(left, top, r.w, r.h);
-      for (let x = left + 8; x < left + r.w; x += 26) {
-        g.lineStyle(1, 0x485b4f, 0.5);
-        g.lineBetween(x, top + 7, x + 10, top + 17);
-      }
-      if (i > 0 && w.height <= 720) {
-        g.lineStyle(1, 0x36473f, 0.6);
-        g.lineBetween(left + 20, top + 22, left + 20, 610);
-        g.lineBetween(left + r.w - 20, top + 22, left + r.w - 20, 610);
-      }
-    }
+    this.skin.background(g, w);
+    for (const platform of w.platforms) this.skin.platform(g, platform);
     if (w.roomIndex === 1) {
       g.lineStyle(2, 0xb98e4b, 0.45);
       for (let y = 590; y > 360; y -= 32) {
@@ -113,7 +76,7 @@ export class Renderer {
         11,
       );
     }
-    // Organic radial bodies; exposed organs remain visually distinct from the core.
+    // Human engineering and divine radial machines use different visual grammars.
     for (const e of w.enemies)
       if (!e.dead) {
         const radius = e.w / 2,
@@ -125,80 +88,7 @@ export class Renderer {
                 : e.kind === "reclaimer"
                   ? 0x9b83b4
                   : 0xa86c75;
-        for (let j = 0; j < (e.kind === "elite" ? 9 : 6); j++) {
-          const a = (j * Math.PI * 2) / 6 + w.time * 0.22,
-            bend = Math.sin(w.time * 4 + j + e.id) * 10;
-          const x = e.x + Math.cos(a) * radius * 0.7,
-            y = e.y + Math.sin(a) * radius * 0.65;
-          const ex = e.x + Math.cos(a) * (radius + 27),
-            ey = e.y + Math.sin(a) * (radius + 16) + bend;
-          g.lineStyle(e.kind === "elite" ? 9 : 5, color, 0.5);
-          g.lineBetween(x, y, (x + ex) / 2 + bend, (y + ey) / 2);
-          g.lineBetween((x + ex) / 2 + bend, (y + ey) / 2, ex, ey);
-          g.fillStyle(color);
-          g.fillCircle(ex, ey, 3);
-        }
-        g.fillStyle(color, 0.12);
-        g.fillCircle(e.x, e.y, radius + 7);
-        g.lineStyle(2, color, 0.85);
-        g.strokeCircle(e.x, e.y, radius);
-        g.fillStyle(e.flash > 0 ? 0xfff6de : 0x44343a);
-        g.fillCircle(e.x, e.y, radius - 4);
-        g.lineStyle(1, color);
-        g.strokeCircle(e.x, e.y, radius * 0.6);
-        g.fillStyle(e.flash > 0 ? 0xffffff : color);
-        g.fillCircle(e.x, e.y, 7);
-        g.lineStyle(2, color, 0.45);
-        g.lineBetween(e.x - radius * 0.6, e.y, e.x + radius * 0.6, e.y);
-        if (e.tier >= 0) {
-          g.lineStyle(2, color, 0.85);
-          if (e.tier === 1)
-            for (let j = 0; j < 4; j++) {
-              const a = (j * Math.PI) / 2 + Math.PI / 4,
-                x = e.x + Math.cos(a) * (radius + 7),
-                y = e.y + Math.sin(a) * (radius + 7);
-              g.strokeTriangle(x - 9, y + 8, x, y - 17, x + 9, y + 8);
-            }
-          if (e.tier === 2)
-            for (let j = 0; j < 6; j++) {
-              const a = (j * Math.PI) / 3;
-              g.fillStyle(color, 0.8);
-              g.fillTriangle(
-                e.x + Math.cos(a - 0.22) * radius,
-                e.y + Math.sin(a - 0.22) * radius,
-                e.x + Math.cos(a) * (radius + 24),
-                e.y + Math.sin(a) * (radius + 24),
-                e.x + Math.cos(a + 0.22) * radius,
-                e.y + Math.sin(a + 0.22) * radius,
-              );
-            }
-          if (e.tier === 3) {
-            for (let j = 0; j < 10; j++) {
-              const a = (j * Math.PI) / 5;
-              g.lineBetween(
-                e.x + Math.cos(a) * radius,
-                e.y + Math.sin(a) * radius,
-                e.x + Math.cos(a + 0.12) * (radius + 30),
-                e.y + Math.sin(a + 0.12) * (radius + 30),
-              );
-            }
-            for (let j = 0; j < 3; j++) {
-              const a = (j * Math.PI * 2) / 3 + w.time * 0.5;
-              g.fillStyle(0xf5c5d8, 0.85);
-              g.fillCircle(e.x + Math.cos(a) * radius * 0.45, e.y + Math.sin(a) * radius * 0.45, 5);
-            }
-            g.strokeEllipse(e.x, e.y, radius * 2 + 32, radius * 2 + 15);
-          }
-          if (distance(e, w.player) < 750)
-            this.label(
-              "enemy-band-" + e.id,
-              e.x - radius - 10,
-              e.y - radius - 48,
-              enemyBands[e.tier].name + " · " + bodyNames[e.kind],
-              "#" + color.toString(16).padStart(6, "0"),
-              11,
-            );
-        }
+        this.skin.enemy(g, e, w.time, w.player.x);
         if (e.hp < e.maxHp) {
           g.fillStyle(0x1a2728);
           g.fillRect(e.x - radius, e.y + radius + 22, radius * 2, 3);
@@ -216,34 +106,63 @@ export class Renderer {
       }
     for (const m of w.modules) if (!m.dead) this.module(w, m, hitboxes);
     const p = w.player;
+    for (const trail of this.skin.heroReady ? [] : p.trails) {
+      g.fillStyle(C.mint, (trail.life / 0.18) * 0.3);
+      g.fillRoundedRect(trail.x - 12, trail.y - 25, 24, 48, 8);
+      g.fillCircle(trail.x, trail.y - 18, 12);
+      g.lineStyle(2, C.mint, (trail.life / 0.18) * 0.5);
+      g.lineBetween(trail.x - p.moveFacing * 32, trail.y, trail.x, trail.y);
+    }
+    if (!p.grounded && p.vy > 850) {
+      g.lineStyle(2, C.mint, 0.65);
+      for (const offset of [-18, 18]) g.lineBetween(p.x + offset, p.y - 55, p.x + offset, p.y + 8);
+    }
     for (const f of w.effects)
-      if (f.kind === "dash") {
+      if (f.kind === "dash" && !this.skin.heroReady) {
         g.fillStyle(f.color, (f.life / f.maxLife) * 0.22);
         g.fillRoundedRect(f.x - 12, f.y - 23, 24, 47, 5);
       }
     g.fillStyle(0x000000, 0.25);
     g.fillEllipse(p.x, w.height > 720 ? p.y + 25 : 608, 40, 7);
-    const blink = p.invulnerable > 0 && Math.floor(w.time * 24) % 2 === 0;
-    g.fillStyle(blink ? 0xffffff : C.cream);
-    g.fillRoundedRect(p.x - 10, p.y - 7, 20, 24, 4);
-    g.fillCircle(p.x, p.y - 16, 12);
-    g.fillStyle(C.cream);
-    g.fillRoundedRect(p.x - 8, p.y - 39, 5, 18, 2);
-    g.fillRoundedRect(p.x + 2, p.y - 35, 5, 14, 2);
-    g.fillStyle(0x2b4140);
-    g.fillRect(p.x + (p.facing > 0 ? 0 : -11), p.y - 20, 11, 5);
-    g.lineStyle(5, 0xd4d2b6);
-    const walk = p.grounded ? Math.sin(w.time * 19) * Math.min(7, Math.abs(p.vx) / 45) : 4;
-    g.lineBetween(p.x - 5, p.y + 14, p.x - 5 + walk, p.y + 24);
-    g.lineBetween(p.x + 5, p.y + 14, p.x + 5 - walk, p.y + 24);
-    g.lineStyle(3, C.mint);
-    g.lineBetween(p.x - 9, p.y + 2, p.x + 9, p.y + 2);
-    const ax = Math.cos(p.aim),
-      ay = Math.sin(p.aim);
-    g.lineStyle(8, 0x566761);
-    g.lineBetween(p.x + ax * 9, p.y + ay * 9, p.x + ax * 28, p.y + ay * 28);
-    g.lineStyle(2, C.cream);
-    g.lineBetween(p.x + ax * 17, p.y + ay * 17, p.x + ax * 32, p.y + ay * 32);
+    if (!this.skin.drawHero(w)) {
+      g.save();
+      g.translateCanvas(p.x, p.y + 24);
+      g.rotateCanvas(p.dashTime > 0 ? p.moveFacing * 0.2 : p.vx / 4200);
+      g.scaleCanvas(1 + p.squash, 1 - p.squash);
+      g.translateCanvas(-p.x, -p.y - 24);
+      const blink = p.invulnerable > 0 && Math.floor(w.time * 24) % 2 === 0;
+      g.fillStyle(blink ? 0xffffff : C.cream);
+      g.fillRoundedRect(p.x - 10, p.y - 7, 20, 24, 4);
+      g.fillCircle(p.x, p.y - 16, 12);
+      g.fillStyle(C.cream);
+      g.fillRoundedRect(p.x - 8, p.y - 39, 5, 18, 2);
+      g.fillRoundedRect(p.x + 2, p.y - 35, 5, 14, 2);
+      g.fillStyle(0x2b4140);
+      g.fillRect(p.x + (p.facing > 0 ? 0 : -11), p.y - 20, 11, 5);
+      g.lineStyle(5, 0xd4d2b6);
+      const walk = p.grounded ? Math.sin(w.time * 19) * Math.min(7, Math.abs(p.vx) / 45) : 4;
+      g.lineBetween(p.x - 5, p.y + 14, p.x - 5 + walk, p.y + 24);
+      g.lineBetween(p.x + 5, p.y + 14, p.x + 5 - walk, p.y + 24);
+      g.lineStyle(3, C.mint);
+      g.lineBetween(p.x - 9, p.y + 2, p.x + 9, p.y + 2);
+      const ax = Math.cos(p.aim),
+        ay = Math.sin(p.aim);
+      g.lineStyle(8, 0x566761);
+      g.lineBetween(p.x + ax * 9, p.y + ay * 9, p.x + ax * 28, p.y + ay * 28);
+      g.lineStyle(2, C.cream);
+      g.lineBetween(p.x + ax * 17, p.y + ay * 17, p.x + ax * 32, p.y + ay * 32);
+      g.restore();
+    }
+    if (!p.grounded && p.airJumpAvailable) {
+      g.fillStyle(0xbcefff, 0.85);
+      g.fillCircle(p.x, p.y + 34, 2.5);
+    }
+    if (p.dashCooldown > 0) {
+      g.lineStyle(2, 0xa4d7c8, 0.6);
+      g.beginPath();
+      g.arc(p.x, p.y + 31, 8, Math.PI, Math.PI + Math.PI * (1 - p.dashCooldown / 0.48));
+      g.strokePath();
+    }
     if (w.held) {
       g.lineStyle(1, C.mint, 0.55);
       g.lineBetween(p.x, p.y, w.held.x, w.held.y);

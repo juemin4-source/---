@@ -378,6 +378,30 @@ export class Juice {
     return this.cues.splice(0);
   }
 
+  /** Movement feedback has no hitstop: traversal must keep responding. */
+  motion(kind: "jump" | "airJump" | "land", x: number, y: number, strength = 1) {
+    if (kind === "airJump") {
+      this.ring(x, y, 0xbcefff, 0.28, 130);
+      this.spray(x, y, 12, 0xbcefff, Math.PI / 2, 1.2, 210, "streak");
+      return;
+    }
+    const power = Math.min(1.3, Math.max(0.3, strength));
+    this.spray(
+      x,
+      y,
+      kind === "jump" ? 5 : Math.round(10 * power),
+      0xa4d7c8,
+      -Math.PI / 2,
+      1.4,
+      110 + 90 * power,
+      "spark",
+    );
+    if (kind === "land") {
+      this.ring(x, y, 0xa4d7c8, 0.2, 75 * power);
+      this.trauma = Math.min(1, this.trauma + 0.06 * power);
+    }
+  }
+
   private ring(x: number, y: number, color: number, life: number, radius: number) {
     this.particles.push({
       x,

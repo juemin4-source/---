@@ -153,6 +153,8 @@ export class SliceWorld extends World {
   airJumps = 0;
   slamming = false;
   slamY = 0;
+  slamWindup = 0;
+  dashBuffer = 0;
   perfectDash = -1;
   wave = 0;
   nextWaveAt = 0;
@@ -332,6 +334,8 @@ export class SliceWorld extends World {
     this.projectiles = [];
     this.grenades = [];
     this.slamming = false;
+    this.slamWindup = 0;
+    this.dashBuffer = 0;
     this.player.dashTime = 0;
     this.player.externalX = 0;
     this.player.vx = 0;
@@ -1056,17 +1060,38 @@ export class SliceWorld extends World {
       this.overheated = false;
     }
     this.shield = Math.max(0, this.shield - (1 + 12 * this.count("shieldBurst")) * dt);
+    this.dashBuffer = c.dash ? 0.12 : Math.max(0, this.dashBuffer - dt);
     const p = this.player,
       controls = { ...c },
-      dash = c.dash && p.dashCooldown <= 0 && this.stamina >= 20;
+      dash =
+        this.dashBuffer > 0 &&
+        p.dashCooldown <= 0 &&
+        this.stamina >= 20 &&
+        this.hostile.playerStatus.frozen <= 0;
     controls.dash = dash;
-    if (dash) this.stamina -= 20;
-    if (c.jump && !p.grounded && p.coyote <= 0 && this.airJumps > 0) {
-      this.airJumps--;
-      p.vy = -590;
-      controls.jump = false;
+    if (dash) {
+      this.stamina -= 20;
+      this.dashBuffer = 0;
+      this.slamming = false;
+      this.slamWindup = 0;
     }
-    if (this.slamming) p.vy = 1050;
+    // Use the free second jump first; module charges extend the same airborne sequence.
+    if (c.jump && !p.grounded && p.coyote <= 0 && this.hostile.playerStatus.frozen <= 0) {
+      if (!p.airJumpAvailable && this.airJumps > 0) {
+        this.airJumps--;
+        p.airJumpAvailable = true;
+      }
+      if (p.airJumpAvailable) {
+        this.slamming = false;
+        this.slamWindup = 0;
+      }
+    }
+    if (this.slamming) {
+      this.slamWindup = Math.max(0, this.slamWindup - dt);
+      p.vy = this.slamWindup > 0 ? -40 : 1050;
+      controls.jump = false;
+      p.jumpBuffer = 0;
+    }
     this.hostile.update(dt);
     if (this.hostile.playerStatus.frozen > 0) {
       controls.left = false;
@@ -1076,6 +1101,8 @@ export class SliceWorld extends World {
       p.vx = 0;
     }
     p.update(dt, controls, this.platforms);
+    if (p.jumped) this.juice.motion(p.airJumped ? "airJump" : "jump", p.x, p.y + 24);
+    if (p.landed > 150 && !this.slamming) this.juice.motion("land", p.x, p.y + 24, p.landed / 900);
     if (this.slamming && p.grounded) {
       const height = Math.max(0, p.y - this.slamY),
         n = this.count("slam");

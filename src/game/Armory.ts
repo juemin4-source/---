@@ -162,6 +162,9 @@ export class Armory {
     if (c.melee && !p.grounded && !w.slamming && w.stamina >= 15) {
       w.slamming = true;
       w.slamY = p.y;
+      w.slamWindup = 0.065;
+      p.dashTime = 0;
+      p.vx *= 0.35;
       w.stamina -= 15;
     }
     if (this.primary === "sniper") {

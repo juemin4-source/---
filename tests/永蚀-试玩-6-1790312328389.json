@@ -1,0 +1,2144 @@
+{
+  "version": "0.9",
+  "unlimited": true,
+  "collectedLayers": 229,
+  "pressure": 40,
+  "reinforcements": 38,
+  "map": "handcrafted-ascent",
+  "trackedBuild": "",
+  "openedSites": [
+    "starter",
+    "root-cache",
+    "colony-cache",
+    "pump-cache",
+    "forge-cache",
+    "cold-cache",
+    "roof-cache",
+    "lift-high",
+    "glass-cache",
+    "lift-low",
+    "rest-med",
+    "core-cache",
+    "station-med"
+  ],
+  "training": false,
+  "wave": 0,
+  "weapon": "rifle",
+  "secondary": "turret",
+  "stacks": {
+    "mark": 11,
+    "conduit": 10,
+    "ram": 9,
+    "battery": 10,
+    "spread": 8,
+    "leech": 9,
+    "speed": 9,
+    "knock": 9,
+    "discharge": 10,
+    "freeze": 9,
+    "shatter": 8,
+    "heavyArea": 8,
+    "airPower": 8,
+    "shieldBurst": 8,
+    "glass": 7,
+    "hot": 8,
+    "vulnerable": 8,
+    "coolShield": 8,
+    "overflow": 8,
+    "stunRegen": 7,
+    "vent": 7,
+    "airJump": 7,
+    "rage": 7,
+    "perfect": 7,
+    "fullRange": 7,
+    "stunKnock": 7,
+    "multi": 8,
+    "slam": 7
+  },
+  "exportedAt": "2026-09-25T04:58:48.385Z",
+  "result": "extracted",
+  "seed": 6,
+  "seconds": 1029.4083333326353,
+  "cargo": 3145,
+  "hp": 78,
+  "organs": [
+    "mark",
+    "conduit",
+    "ram",
+    "battery",
+    "spread",
+    "leech",
+    "speed",
+    "knock",
+    "discharge",
+    "freeze",
+    "shatter",
+    "heavyArea",
+    "airPower",
+    "shieldBurst",
+    "glass",
+    "hot",
+    "vulnerable",
+    "coolShield",
+    "overflow",
+    "stunRegen",
+    "vent",
+    "airJump",
+    "rage",
+    "perfect",
+    "fullRange",
+    "stunKnock",
+    "multi",
+    "slam"
+  ],
+  "shortcutAtStart": false,
+  "metrics": {
+    "shots": 6871,
+    "hits": 5080,
+    "wallCharges": 329,
+    "chargedHits": 231,
+    "transmissions": 14400,
+    "spreads": 882,
+    "swaps": 0,
+    "damage": 297.5320463768181,
+    "decisions": 13,
+    "dealt": 12113742.399998695,
+    "freezes": 775,
+    "shatters": 246,
+    "perfectDodges": 0,
+    "staggers": 249
+  },
+  "events": [
+    {
+      "time": 0,
+      "event": "district",
+      "detail": "sump"
+    },
+    {
+      "time": 2.4,
+      "event": "site",
+      "detail": "starter"
+    },
+    {
+      "time": 6.4,
+      "event": "weapon",
+      "detail": "rifle"
+    },
+    {
+      "time": 6.4,
+      "event": "secondary",
+      "detail": "turret"
+    },
+    {
+      "time": 11.5,
+      "event": "district",
+      "detail": "roots"
+    },
+    {
+      "time": 14.9,
+      "event": "equip",
+      "detail": "empty → mark"
+    },
+    {
+      "time": 20.3,
+      "event": "equip",
+      "detail": "empty → conduit"
+    },
+    {
+      "time": 22.9,
+      "event": "site",
+      "detail": "root-cache"
+    },
+    {
+      "time": 22.9,
+      "event": "stack",
+      "detail": "mark x2"
+    },
+    {
+      "time": 24,
+      "event": "incursion",
+      "detail": "1;pressure=0;count=2"
+    },
+    {
+      "time": 24.3,
+      "event": "district",
+      "detail": "colony"
+    },
+    {
+      "time": 24.7,
+      "event": "district",
+      "detail": "roots"
+    },
+    {
+      "time": 27.5,
+      "event": "equip",
+      "detail": "empty → ram"
+    },
+    {
+      "time": 27.6,
+      "event": "equip",
+      "detail": "empty → battery"
+    },
+    {
+      "time": 29.7,
+      "event": "district",
+      "detail": "colony"
+    },
+    {
+      "time": 30.7,
+      "event": "district",
+      "detail": "roots"
+    },
+    {
+      "time": 37,
+      "event": "district",
+      "detail": "colony"
+    },
+    {
+      "time": 37.3,
+      "event": "equip",
+      "detail": "empty → spread"
+    },
+    {
+      "time": 37.3,
+      "event": "stack",
+      "detail": "mark x3"
+    },
+    {
+      "time": 37.3,
+      "event": "equip",
+      "detail": "empty → leech"
+    },
+    {
+      "time": 37.8,
+      "event": "district",
+      "detail": "roots"
+    },
+    {
+      "time": 38.2,
+      "event": "district",
+      "detail": "colony"
+    },
+    {
+      "time": 38.7,
+      "event": "equip",
+      "detail": "empty → speed"
+    },
+    {
+      "time": 39.9,
+      "event": "site",
+      "detail": "colony-cache"
+    },
+    {
+      "time": 39.9,
+      "event": "stack",
+      "detail": "conduit x2"
+    },
+    {
+      "time": 42.3,
+      "event": "district",
+      "detail": "rest"
+    },
+    {
+      "time": 43.2,
+      "event": "district",
+      "detail": "forge"
+    },
+    {
+      "time": 43.6,
+      "event": "district",
+      "detail": "pump"
+    },
+    {
+      "time": 47.3,
+      "event": "stack",
+      "detail": "battery x2"
+    },
+    {
+      "time": 48,
+      "event": "incursion",
+      "detail": "2;pressure=1;count=2"
+    },
+    {
+      "time": 49.1,
+      "event": "site",
+      "detail": "pump-cache"
+    },
+    {
+      "time": 49.1,
+      "event": "equip",
+      "detail": "empty → knock"
+    },
+    {
+      "time": 50.8,
+      "event": "district",
+      "detail": "forge"
+    },
+    {
+      "time": 54.2,
+      "event": "stack",
+      "detail": "knock x2"
+    },
+    {
+      "time": 54.2,
+      "event": "equip",
+      "detail": "empty → discharge"
+    },
+    {
+      "time": 56.4,
+      "event": "site",
+      "detail": "forge-cache"
+    },
+    {
+      "time": 56.4,
+      "event": "stack",
+      "detail": "speed x2"
+    },
+    {
+      "time": 57.8,
+      "event": "district",
+      "detail": "rest"
+    },
+    {
+      "time": 61.1,
+      "event": "district",
+      "detail": "cold"
+    },
+    {
+      "time": 71,
+      "event": "incursion",
+      "detail": "3;pressure=2;count=2"
+    },
+    {
+      "time": 73.2,
+      "event": "site",
+      "detail": "cold-cache"
+    },
+    {
+      "time": 73.2,
+      "event": "equip",
+      "detail": "empty → freeze"
+    },
+    {
+      "time": 73.8,
+      "event": "equip",
+      "detail": "empty → shatter"
+    },
+    {
+      "time": 78,
+      "event": "stack",
+      "detail": "conduit x3"
+    },
+    {
+      "time": 78.2,
+      "event": "stack",
+      "detail": "spread x2"
+    },
+    {
+      "time": 78.4,
+      "event": "stack",
+      "detail": "freeze x2"
+    },
+    {
+      "time": 81.2,
+      "event": "district",
+      "detail": "station"
+    },
+    {
+      "time": 82.5,
+      "event": "district",
+      "detail": "cold"
+    },
+    {
+      "time": 84.6,
+      "event": "district",
+      "detail": "station"
+    },
+    {
+      "time": 85,
+      "event": "district",
+      "detail": "cold"
+    },
+    {
+      "time": 85.9,
+      "event": "district",
+      "detail": "station"
+    },
+    {
+      "time": 87.9,
+      "event": "district",
+      "detail": "cold"
+    },
+    {
+      "time": 91.2,
+      "event": "district",
+      "detail": "station"
+    },
+    {
+      "time": 92.7,
+      "event": "district",
+      "detail": "cold"
+    },
+    {
+      "time": 93,
+      "event": "incursion",
+      "detail": "4;pressure=4;count=3"
+    },
+    {
+      "time": 95.7,
+      "event": "district",
+      "detail": "rest"
+    },
+    {
+      "time": 99.1,
+      "event": "district",
+      "detail": "cold"
+    },
+    {
+      "time": 103.3,
+      "event": "stack",
+      "detail": "leech x2"
+    },
+    {
+      "time": 106,
+      "event": "stack",
+      "detail": "speed x3"
+    },
+    {
+      "time": 106,
+      "event": "stack",
+      "detail": "knock x3"
+    },
+    {
+      "time": 107.7,
+      "event": "district",
+      "detail": "station"
+    },
+    {
+      "time": 108.1,
+      "event": "district",
+      "detail": "cold"
+    },
+    {
+      "time": 108.7,
+      "event": "district",
+      "detail": "station"
+    },
+    {
+      "time": 111.5,
+      "event": "equip",
+      "detail": "empty → heavyArea"
+    },
+    {
+      "time": 113,
+      "event": "incursion",
+      "detail": "5;pressure=5;count=3"
+    },
+    {
+      "time": 113.5,
+      "event": "site",
+      "detail": "roof-cache"
+    },
+    {
+      "time": 113.5,
+      "event": "equip",
+      "detail": "empty → airPower"
+    },
+    {
+      "time": 142.7,
+      "event": "stack",
+      "detail": "heavyArea x2"
+    },
+    {
+      "time": 142.8,
+      "event": "equip",
+      "detail": "empty → shieldBurst"
+    },
+    {
+      "time": 143.8,
+      "event": "equip",
+      "detail": "empty → glass"
+    },
+    {
+      "time": 144.7,
+      "event": "equip",
+      "detail": "empty → hot"
+    },
+    {
+      "time": 145.3,
+      "event": "site",
+      "detail": "lift-high"
+    },
+    {
+      "time": 148.1,
+      "event": "equip",
+      "detail": "empty → vulnerable"
+    },
+    {
+      "time": 150.5,
+      "event": "district",
+      "detail": "glass"
+    },
+    {
+      "time": 152.9,
+      "event": "district",
+      "detail": "station"
+    },
+    {
+      "time": 153.2,
+      "event": "district",
+      "detail": "glass"
+    },
+    {
+      "time": 163.4,
+      "event": "stack",
+      "detail": "shieldBurst x2"
+    },
+    {
+      "time": 163.8,
+      "event": "equip",
+      "detail": "empty → coolShield"
+    },
+    {
+      "time": 165.7,
+      "event": "site",
+      "detail": "glass-cache"
+    },
+    {
+      "time": 165.7,
+      "event": "stack",
+      "detail": "leech x3"
+    },
+    {
+      "time": 168.3,
+      "event": "district",
+      "detail": "rest"
+    },
+    {
+      "time": 172.2,
+      "event": "equip",
+      "detail": "empty → overflow"
+    },
+    {
+      "time": 173.9,
+      "event": "site",
+      "detail": "lift-low"
+    },
+    {
+      "time": 178,
+      "event": "site",
+      "detail": "rest-med"
+    },
+    {
+      "time": 179.6,
+      "event": "district",
+      "detail": "cold"
+    },
+    {
+      "time": 185.4,
+      "event": "district",
+      "detail": "station"
+    },
+    {
+      "time": 187,
+      "event": "incursion",
+      "detail": "6;pressure=7;count=4"
+    },
+    {
+      "time": 204,
+      "event": "incursion",
+      "detail": "7;pressure=7;count=4"
+    },
+    {
+      "time": 218.8,
+      "event": "equip",
+      "detail": "empty → stunRegen"
+    },
+    {
+      "time": 218.9,
+      "event": "equip",
+      "detail": "empty → vent"
+    },
+    {
+      "time": 218.9,
+      "event": "equip",
+      "detail": "empty → airJump"
+    },
+    {
+      "time": 218.9,
+      "event": "equip",
+      "detail": "empty → rage"
+    },
+    {
+      "time": 220,
+      "event": "stack",
+      "detail": "coolShield x2"
+    },
+    {
+      "time": 221.1,
+      "event": "incursion",
+      "detail": "8;pressure=8;count=4"
+    },
+    {
+      "time": 221.1,
+      "event": "equip",
+      "detail": "empty → perfect"
+    },
+    {
+      "time": 221.4,
+      "event": "equip",
+      "detail": "empty → fullRange"
+    },
+    {
+      "time": 239.7,
+      "event": "stack",
+      "detail": "vulnerable x2"
+    },
+    {
+      "time": 240.1,
+      "event": "stack",
+      "detail": "shatter x2"
+    },
+    {
+      "time": 240.1,
+      "event": "equip",
+      "detail": "empty → stunKnock"
+    },
+    {
+      "time": 240.2,
+      "event": "stack",
+      "detail": "freeze x3"
+    },
+    {
+      "time": 242.9,
+      "event": "district",
+      "detail": "crown"
+    },
+    {
+      "time": 253.1,
+      "event": "incursion",
+      "detail": "9;pressure=9;count=5"
+    },
+    {
+      "time": 255.3,
+      "event": "stack",
+      "detail": "battery x3"
+    },
+    {
+      "time": 256.8,
+      "event": "boss",
+      "detail": "defeated"
+    },
+    {
+      "time": 257.7,
+      "event": "stack",
+      "detail": "discharge x2"
+    },
+    {
+      "time": 260.5,
+      "event": "site",
+      "detail": "core-cache"
+    },
+    {
+      "time": 260.5,
+      "event": "equip",
+      "detail": "empty → multi"
+    },
+    {
+      "time": 262,
+      "event": "stack",
+      "detail": "conduit x4"
+    },
+    {
+      "time": 264.4,
+      "event": "stack",
+      "detail": "overflow x2"
+    },
+    {
+      "time": 264.8,
+      "event": "stack",
+      "detail": "multi x2"
+    },
+    {
+      "time": 264.9,
+      "event": "equip",
+      "detail": "empty → slam"
+    },
+    {
+      "time": 264.9,
+      "event": "stack",
+      "detail": "ram x2"
+    },
+    {
+      "time": 268.3,
+      "event": "district",
+      "detail": "station"
+    },
+    {
+      "time": 272.3,
+      "event": "district",
+      "detail": "glass"
+    },
+    {
+      "time": 276,
+      "event": "district",
+      "detail": "rest"
+    },
+    {
+      "time": 280.1,
+      "event": "district",
+      "detail": "forge"
+    },
+    {
+      "time": 281,
+      "event": "district",
+      "detail": "rest"
+    },
+    {
+      "time": 281.3,
+      "event": "district",
+      "detail": "forge"
+    },
+    {
+      "time": 282.1,
+      "event": "incursion",
+      "detail": "10;pressure=11;count=5"
+    },
+    {
+      "time": 291.4,
+      "event": "district",
+      "detail": "pump"
+    },
+    {
+      "time": 295.1,
+      "event": "incursion",
+      "detail": "11;pressure=11;count=5"
+    },
+    {
+      "time": 308.1,
+      "event": "incursion",
+      "detail": "12;pressure=11;count=5"
+    },
+    {
+      "time": 314.7,
+      "event": "stack",
+      "detail": "glass x2"
+    },
+    {
+      "time": 315,
+      "event": "stack",
+      "detail": "heavyArea x3"
+    },
+    {
+      "time": 315.1,
+      "event": "stack",
+      "detail": "speed x4"
+    },
+    {
+      "time": 315.2,
+      "event": "stack",
+      "detail": "airJump x2"
+    },
+    {
+      "time": 315.2,
+      "event": "stack",
+      "detail": "hot x2"
+    },
+    {
+      "time": 315.2,
+      "event": "stack",
+      "detail": "perfect x2"
+    },
+    {
+      "time": 315.3,
+      "event": "stack",
+      "detail": "stunRegen x2"
+    },
+    {
+      "time": 315.4,
+      "event": "stack",
+      "detail": "leech x4"
+    },
+    {
+      "time": 315.4,
+      "event": "stack",
+      "detail": "knock x4"
+    },
+    {
+      "time": 315.4,
+      "event": "stack",
+      "detail": "shieldBurst x3"
+    },
+    {
+      "time": 317,
+      "event": "stack",
+      "detail": "discharge x3"
+    },
+    {
+      "time": 317.1,
+      "event": "stack",
+      "detail": "mark x4"
+    },
+    {
+      "time": 318.2,
+      "event": "district",
+      "detail": "sump"
+    },
+    {
+      "time": 320.5,
+      "event": "district",
+      "detail": "pump"
+    },
+    {
+      "time": 321.1,
+      "event": "district",
+      "detail": "sump"
+    },
+    {
+      "time": 326.1,
+      "event": "stack",
+      "detail": "ram x3"
+    },
+    {
+      "time": 326.2,
+      "event": "stack",
+      "detail": "spread x3"
+    },
+    {
+      "time": 326.3,
+      "event": "stack",
+      "detail": "conduit x5"
+    },
+    {
+      "time": 326.5,
+      "event": "stack",
+      "detail": "mark x5"
+    },
+    {
+      "time": 329.7,
+      "event": "stack",
+      "detail": "discharge x4"
+    },
+    {
+      "time": 334.1,
+      "event": "district",
+      "detail": "pump"
+    },
+    {
+      "time": 340.5,
+      "event": "district",
+      "detail": "roots"
+    },
+    {
+      "time": 342.2,
+      "event": "district",
+      "detail": "pump"
+    },
+    {
+      "time": 345.1,
+      "event": "district",
+      "detail": "sump"
+    },
+    {
+      "time": 346.9,
+      "event": "district",
+      "detail": "pump"
+    },
+    {
+      "time": 350.5,
+      "event": "district",
+      "detail": "forge"
+    },
+    {
+      "time": 357.1,
+      "event": "incursion",
+      "detail": "13;pressure=14;count=6"
+    },
+    {
+      "time": 364.7,
+      "event": "stack",
+      "detail": "stunKnock x2"
+    },
+    {
+      "time": 364.7,
+      "event": "stack",
+      "detail": "rage x2"
+    },
+    {
+      "time": 364.7,
+      "event": "stack",
+      "detail": "freeze x4"
+    },
+    {
+      "time": 366.5,
+      "event": "district",
+      "detail": "pump"
+    },
+    {
+      "time": 369.1,
+      "event": "incursion",
+      "detail": "14;pressure=16;count=6"
+    },
+    {
+      "time": 373.4,
+      "event": "district",
+      "detail": "sump"
+    },
+    {
+      "time": 374.7,
+      "event": "stack",
+      "detail": "battery x4"
+    },
+    {
+      "time": 382.5,
+      "event": "stack",
+      "detail": "coolShield x3"
+    },
+    {
+      "time": 383.3,
+      "event": "stack",
+      "detail": "airPower x3"
+    },
+    {
+      "time": 383.3,
+      "event": "stack",
+      "detail": "vent x2"
+    },
+    {
+      "time": 383.3,
+      "event": "stack",
+      "detail": "overflow x3"
+    },
+    {
+      "time": 383.3,
+      "event": "stack",
+      "detail": "slam x2"
+    },
+    {
+      "time": 383.3,
+      "event": "stack",
+      "detail": "vulnerable x3"
+    },
+    {
+      "time": 383.3,
+      "event": "stack",
+      "detail": "fullRange x2"
+    },
+    {
+      "time": 407.1,
+      "event": "stack",
+      "detail": "shatter x3"
+    },
+    {
+      "time": 411.9,
+      "event": "stack",
+      "detail": "multi x3"
+    },
+    {
+      "time": 415.8,
+      "event": "district",
+      "detail": "roots"
+    },
+    {
+      "time": 417.2,
+      "event": "incursion",
+      "detail": "15;pressure=18;count=6"
+    },
+    {
+      "time": 429.2,
+      "event": "incursion",
+      "detail": "16;pressure=18;count=6"
+    },
+    {
+      "time": 430,
+      "event": "stack",
+      "detail": "ram x4"
+    },
+    {
+      "time": 430,
+      "event": "stack",
+      "detail": "battery x5"
+    },
+    {
+      "time": 430,
+      "event": "stack",
+      "detail": "mark x6"
+    },
+    {
+      "time": 430,
+      "event": "stack",
+      "detail": "discharge x5"
+    },
+    {
+      "time": 430,
+      "event": "stack",
+      "detail": "conduit x6"
+    },
+    {
+      "time": 430,
+      "event": "stack",
+      "detail": "spread x4"
+    },
+    {
+      "time": 430.7,
+      "event": "district",
+      "detail": "sump"
+    },
+    {
+      "time": 436.9,
+      "event": "district",
+      "detail": "roots"
+    },
+    {
+      "time": 440.1,
+      "event": "district",
+      "detail": "colony"
+    },
+    {
+      "time": 441.2,
+      "event": "incursion",
+      "detail": "17;pressure=19;count=6"
+    },
+    {
+      "time": 453.2,
+      "event": "incursion",
+      "detail": "18;pressure=20;count=6"
+    },
+    {
+      "time": 465.2,
+      "event": "incursion",
+      "detail": "19;pressure=20;count=6"
+    },
+    {
+      "time": 477.2,
+      "event": "incursion",
+      "detail": "20;pressure=20;count=6"
+    },
+    {
+      "time": 479.6,
+      "event": "stack",
+      "detail": "shieldBurst x4"
+    },
+    {
+      "time": 479.6,
+      "event": "stack",
+      "detail": "heavyArea x4"
+    },
+    {
+      "time": 479.7,
+      "event": "stack",
+      "detail": "knock x5"
+    },
+    {
+      "time": 479.8,
+      "event": "stack",
+      "detail": "glass x3"
+    },
+    {
+      "time": 479.8,
+      "event": "stack",
+      "detail": "leech x5"
+    },
+    {
+      "time": 479.8,
+      "event": "stack",
+      "detail": "fullRange x3"
+    },
+    {
+      "time": 479.8,
+      "event": "stack",
+      "detail": "stunRegen x3"
+    },
+    {
+      "time": 479.8,
+      "event": "stack",
+      "detail": "vent x3"
+    },
+    {
+      "time": 479.8,
+      "event": "stack",
+      "detail": "freeze x5"
+    },
+    {
+      "time": 479.8,
+      "event": "stack",
+      "detail": "stunKnock x3"
+    },
+    {
+      "time": 479.8,
+      "event": "stack",
+      "detail": "vulnerable x4"
+    },
+    {
+      "time": 479.8,
+      "event": "stack",
+      "detail": "shatter x4"
+    },
+    {
+      "time": 479.8,
+      "event": "stack",
+      "detail": "battery x6"
+    },
+    {
+      "time": 479.8,
+      "event": "stack",
+      "detail": "overflow x4"
+    },
+    {
+      "time": 479.8,
+      "event": "stack",
+      "detail": "airPower x4"
+    },
+    {
+      "time": 479.8,
+      "event": "stack",
+      "detail": "multi x4"
+    },
+    {
+      "time": 479.8,
+      "event": "stack",
+      "detail": "ram x5"
+    },
+    {
+      "time": 479.8,
+      "event": "stack",
+      "detail": "slam x3"
+    },
+    {
+      "time": 481.9,
+      "event": "district",
+      "detail": "roots"
+    },
+    {
+      "time": 485.7,
+      "event": "district",
+      "detail": "colony"
+    },
+    {
+      "time": 489.2,
+      "event": "incursion",
+      "detail": "21;pressure=23;count=6"
+    },
+    {
+      "time": 500.8,
+      "event": "district",
+      "detail": "roots"
+    },
+    {
+      "time": 501.2,
+      "event": "incursion",
+      "detail": "22;pressure=23;count=6"
+    },
+    {
+      "time": 505,
+      "event": "district",
+      "detail": "sump"
+    },
+    {
+      "time": 506.9,
+      "event": "stack",
+      "detail": "rage x3"
+    },
+    {
+      "time": 506.9,
+      "event": "stack",
+      "detail": "speed x5"
+    },
+    {
+      "time": 507.1,
+      "event": "stack",
+      "detail": "discharge x6"
+    },
+    {
+      "time": 507.2,
+      "event": "stack",
+      "detail": "hot x3"
+    },
+    {
+      "time": 507.2,
+      "event": "stack",
+      "detail": "perfect x3"
+    },
+    {
+      "time": 522.7,
+      "event": "stack",
+      "detail": "fullRange x4"
+    },
+    {
+      "time": 531.6,
+      "event": "stack",
+      "detail": "coolShield x4"
+    },
+    {
+      "time": 537.6,
+      "event": "stack",
+      "detail": "vent x4"
+    },
+    {
+      "time": 538.7,
+      "event": "stack",
+      "detail": "rage x4"
+    },
+    {
+      "time": 541.8,
+      "event": "stack",
+      "detail": "hot x4"
+    },
+    {
+      "time": 542.5,
+      "event": "stack",
+      "detail": "shieldBurst x5"
+    },
+    {
+      "time": 542.5,
+      "event": "stack",
+      "detail": "airJump x3"
+    },
+    {
+      "time": 555.9,
+      "event": "stack",
+      "detail": "glass x4"
+    },
+    {
+      "time": 555.9,
+      "event": "stack",
+      "detail": "stunRegen x4"
+    },
+    {
+      "time": 555.9,
+      "event": "stack",
+      "detail": "heavyArea x5"
+    },
+    {
+      "time": 555.9,
+      "event": "stack",
+      "detail": "perfect x4"
+    },
+    {
+      "time": 555.9,
+      "event": "stack",
+      "detail": "knock x6"
+    },
+    {
+      "time": 562,
+      "event": "district",
+      "detail": "roots"
+    },
+    {
+      "time": 569,
+      "event": "district",
+      "detail": "colony"
+    },
+    {
+      "time": 571.2,
+      "event": "district",
+      "detail": "forge"
+    },
+    {
+      "time": 573.3,
+      "event": "incursion",
+      "detail": "23;pressure=26;count=6"
+    },
+    {
+      "time": 582.4,
+      "event": "district",
+      "detail": "pump"
+    },
+    {
+      "time": 582.6,
+      "event": "stack",
+      "detail": "airJump x4"
+    },
+    {
+      "time": 585.3,
+      "event": "incursion",
+      "detail": "24;pressure=27;count=6"
+    },
+    {
+      "time": 588.3,
+      "event": "stack",
+      "detail": "mark x7"
+    },
+    {
+      "time": 594.5,
+      "event": "stack",
+      "detail": "mark x8"
+    },
+    {
+      "time": 594.5,
+      "event": "stack",
+      "detail": "battery x7"
+    },
+    {
+      "time": 594.5,
+      "event": "stack",
+      "detail": "multi x5"
+    },
+    {
+      "time": 594.6,
+      "event": "stack",
+      "detail": "ram x6"
+    },
+    {
+      "time": 594.6,
+      "event": "stack",
+      "detail": "slam x4"
+    },
+    {
+      "time": 594.6,
+      "event": "stack",
+      "detail": "discharge x7"
+    },
+    {
+      "time": 596.3,
+      "event": "district",
+      "detail": "sump"
+    },
+    {
+      "time": 600.8,
+      "event": "stack",
+      "detail": "leech x6"
+    },
+    {
+      "time": 601,
+      "event": "stack",
+      "detail": "vulnerable x5"
+    },
+    {
+      "time": 601,
+      "event": "stack",
+      "detail": "stunKnock x4"
+    },
+    {
+      "time": 601,
+      "event": "stack",
+      "detail": "shatter x5"
+    },
+    {
+      "time": 601,
+      "event": "stack",
+      "detail": "overflow x5"
+    },
+    {
+      "time": 601,
+      "event": "stack",
+      "detail": "airPower x5"
+    },
+    {
+      "time": 601,
+      "event": "stack",
+      "detail": "freeze x6"
+    },
+    {
+      "time": 604.6,
+      "event": "stack",
+      "detail": "spread x5"
+    },
+    {
+      "time": 604.6,
+      "event": "stack",
+      "detail": "speed x6"
+    },
+    {
+      "time": 604.7,
+      "event": "stack",
+      "detail": "conduit x7"
+    },
+    {
+      "time": 609.1,
+      "event": "district",
+      "detail": "rest"
+    },
+    {
+      "time": 611.2,
+      "event": "district",
+      "detail": "cold"
+    },
+    {
+      "time": 614.3,
+      "event": "district",
+      "detail": "rest"
+    },
+    {
+      "time": 619.8,
+      "event": "district",
+      "detail": "forge"
+    },
+    {
+      "time": 621.3,
+      "event": "incursion",
+      "detail": "25;pressure=29;count=6"
+    },
+    {
+      "time": 631.9,
+      "event": "district",
+      "detail": "pump"
+    },
+    {
+      "time": 632.4,
+      "event": "district",
+      "detail": "sump"
+    },
+    {
+      "time": 633.3,
+      "event": "stack",
+      "detail": "glass x5"
+    },
+    {
+      "time": 635.7,
+      "event": "district",
+      "detail": "roots"
+    },
+    {
+      "time": 637.4,
+      "event": "stack",
+      "detail": "coolShield x5"
+    },
+    {
+      "time": 638.9,
+      "event": "district",
+      "detail": "pump"
+    },
+    {
+      "time": 640.4,
+      "event": "stack",
+      "detail": "speed x7"
+    },
+    {
+      "time": 640.5,
+      "event": "stack",
+      "detail": "knock x7"
+    },
+    {
+      "time": 643,
+      "event": "district",
+      "detail": "forge"
+    },
+    {
+      "time": 643.4,
+      "event": "district",
+      "detail": "pump"
+    },
+    {
+      "time": 643.7,
+      "event": "district",
+      "detail": "forge"
+    },
+    {
+      "time": 645.3,
+      "event": "incursion",
+      "detail": "26;pressure=31;count=6"
+    },
+    {
+      "time": 651.7,
+      "event": "district",
+      "detail": "pump"
+    },
+    {
+      "time": 653,
+      "event": "district",
+      "detail": "sump"
+    },
+    {
+      "time": 658.1,
+      "event": "stack",
+      "detail": "hot x5"
+    },
+    {
+      "time": 663.5,
+      "event": "stack",
+      "detail": "shieldBurst x6"
+    },
+    {
+      "time": 663.5,
+      "event": "stack",
+      "detail": "heavyArea x6"
+    },
+    {
+      "time": 663.5,
+      "event": "stack",
+      "detail": "perfect x5"
+    },
+    {
+      "time": 681.7,
+      "event": "stack",
+      "detail": "stunRegen x5"
+    },
+    {
+      "time": 681.7,
+      "event": "stack",
+      "detail": "airJump x5"
+    },
+    {
+      "time": 681.7,
+      "event": "stack",
+      "detail": "hot x6"
+    },
+    {
+      "time": 681.7,
+      "event": "stack",
+      "detail": "conduit x8"
+    },
+    {
+      "time": 681.7,
+      "event": "stack",
+      "detail": "spread x6"
+    },
+    {
+      "time": 711.4,
+      "event": "district",
+      "detail": "roots"
+    },
+    {
+      "time": 715.6,
+      "event": "district",
+      "detail": "colony"
+    },
+    {
+      "time": 716.8,
+      "event": "stack",
+      "detail": "leech x7"
+    },
+    {
+      "time": 717.4,
+      "event": "incursion",
+      "detail": "27;pressure=33;count=6"
+    },
+    {
+      "time": 723.7,
+      "event": "district",
+      "detail": "sump"
+    },
+    {
+      "time": 732.2,
+      "event": "heal",
+      "detail": "hp=104.05328695652175"
+    },
+    {
+      "time": 744.2,
+      "event": "stack",
+      "detail": "freeze x7"
+    },
+    {
+      "time": 744.2,
+      "event": "stack",
+      "detail": "rage x5"
+    },
+    {
+      "time": 744.2,
+      "event": "stack",
+      "detail": "vent x5"
+    },
+    {
+      "time": 744.2,
+      "event": "stack",
+      "detail": "coolShield x6"
+    },
+    {
+      "time": 744.2,
+      "event": "stack",
+      "detail": "stunKnock x5"
+    },
+    {
+      "time": 744.2,
+      "event": "stack",
+      "detail": "fullRange x5"
+    },
+    {
+      "time": 748.5,
+      "event": "district",
+      "detail": "roots"
+    },
+    {
+      "time": 751,
+      "event": "district",
+      "detail": "colony"
+    },
+    {
+      "time": 753.4,
+      "event": "incursion",
+      "detail": "28;pressure=35;count=6"
+    },
+    {
+      "time": 760.8,
+      "event": "district",
+      "detail": "roots"
+    },
+    {
+      "time": 763.4,
+      "event": "district",
+      "detail": "colony"
+    },
+    {
+      "time": 765.4,
+      "event": "incursion",
+      "detail": "29;pressure=35;count=6"
+    },
+    {
+      "time": 771.5,
+      "event": "district",
+      "detail": "roots"
+    },
+    {
+      "time": 777.4,
+      "event": "incursion",
+      "detail": "30;pressure=35;count=6"
+    },
+    {
+      "time": 789.4,
+      "event": "incursion",
+      "detail": "31;pressure=35;count=6"
+    },
+    {
+      "time": 797.4,
+      "event": "district",
+      "detail": "sump"
+    },
+    {
+      "time": 804.5,
+      "event": "stack",
+      "detail": "hot x7"
+    },
+    {
+      "time": 804.5,
+      "event": "stack",
+      "detail": "coolShield x7"
+    },
+    {
+      "time": 804.6,
+      "event": "stack",
+      "detail": "shatter x6"
+    },
+    {
+      "time": 804.6,
+      "event": "stack",
+      "detail": "multi x6"
+    },
+    {
+      "time": 804.6,
+      "event": "stack",
+      "detail": "overflow x6"
+    },
+    {
+      "time": 804.6,
+      "event": "stack",
+      "detail": "airPower x6"
+    },
+    {
+      "time": 804.6,
+      "event": "stack",
+      "detail": "slam x5"
+    },
+    {
+      "time": 804.6,
+      "event": "stack",
+      "detail": "ram x7"
+    },
+    {
+      "time": 804.6,
+      "event": "stack",
+      "detail": "battery x8"
+    },
+    {
+      "time": 804.6,
+      "event": "stack",
+      "detail": "discharge x8"
+    },
+    {
+      "time": 804.6,
+      "event": "stack",
+      "detail": "conduit x9"
+    },
+    {
+      "time": 804.6,
+      "event": "stack",
+      "detail": "vulnerable x6"
+    },
+    {
+      "time": 804.6,
+      "event": "stack",
+      "detail": "mark x9"
+    },
+    {
+      "time": 804.6,
+      "event": "stack",
+      "detail": "spread x7"
+    },
+    {
+      "time": 804.6,
+      "event": "stack",
+      "detail": "speed x8"
+    },
+    {
+      "time": 804.6,
+      "event": "stack",
+      "detail": "glass x6"
+    },
+    {
+      "time": 808.4,
+      "event": "district",
+      "detail": "roots"
+    },
+    {
+      "time": 813.5,
+      "event": "incursion",
+      "detail": "32;pressure=38;count=6"
+    },
+    {
+      "time": 820.5,
+      "event": "stack",
+      "detail": "heavyArea x7"
+    },
+    {
+      "time": 824.8,
+      "event": "district",
+      "detail": "pump"
+    },
+    {
+      "time": 825.5,
+      "event": "incursion",
+      "detail": "33;pressure=39;count=6"
+    },
+    {
+      "time": 834.9,
+      "event": "stack",
+      "detail": "airJump x6"
+    },
+    {
+      "time": 834.9,
+      "event": "stack",
+      "detail": "stunRegen x6"
+    },
+    {
+      "time": 834.9,
+      "event": "stack",
+      "detail": "fullRange x6"
+    },
+    {
+      "time": 834.9,
+      "event": "stack",
+      "detail": "slam x6"
+    },
+    {
+      "time": 834.9,
+      "event": "stack",
+      "detail": "battery x9"
+    },
+    {
+      "time": 837.5,
+      "event": "incursion",
+      "detail": "34;pressure=39;count=6"
+    },
+    {
+      "time": 838.1,
+      "event": "stack",
+      "detail": "stunKnock x6"
+    },
+    {
+      "time": 844.9,
+      "event": "stack",
+      "detail": "speed x9"
+    },
+    {
+      "time": 844.9,
+      "event": "stack",
+      "detail": "leech x8"
+    },
+    {
+      "time": 845,
+      "event": "stack",
+      "detail": "conduit x10"
+    },
+    {
+      "time": 845.1,
+      "event": "stack",
+      "detail": "discharge x9"
+    },
+    {
+      "time": 845.1,
+      "event": "stack",
+      "detail": "mark x10"
+    },
+    {
+      "time": 845.1,
+      "event": "stack",
+      "detail": "spread x8"
+    },
+    {
+      "time": 846.8,
+      "event": "stack",
+      "detail": "freeze x8"
+    },
+    {
+      "time": 846.8,
+      "event": "stack",
+      "detail": "rage x6"
+    },
+    {
+      "time": 846.8,
+      "event": "stack",
+      "detail": "vulnerable x7"
+    },
+    {
+      "time": 846.8,
+      "event": "stack",
+      "detail": "shatter x7"
+    },
+    {
+      "time": 846.8,
+      "event": "stack",
+      "detail": "perfect x6"
+    },
+    {
+      "time": 846.8,
+      "event": "stack",
+      "detail": "airPower x7"
+    },
+    {
+      "time": 846.8,
+      "event": "stack",
+      "detail": "ram x8"
+    },
+    {
+      "time": 847.2,
+      "event": "stack",
+      "detail": "vent x6"
+    },
+    {
+      "time": 847.3,
+      "event": "district",
+      "detail": "sump"
+    },
+    {
+      "time": 863.3,
+      "event": "stack",
+      "detail": "multi x7"
+    },
+    {
+      "time": 863.3,
+      "event": "stack",
+      "detail": "knock x8"
+    },
+    {
+      "time": 863.3,
+      "event": "stack",
+      "detail": "leech x9"
+    },
+    {
+      "time": 863.3,
+      "event": "stack",
+      "detail": "overflow x7"
+    },
+    {
+      "time": 867.3,
+      "event": "district",
+      "detail": "roots"
+    },
+    {
+      "time": 869.5,
+      "event": "stack",
+      "detail": "shieldBurst x7"
+    },
+    {
+      "time": 870.3,
+      "event": "district",
+      "detail": "colony"
+    },
+    {
+      "time": 873.5,
+      "event": "incursion",
+      "detail": "35;pressure=40;count=6"
+    },
+    {
+      "time": 885.5,
+      "event": "incursion",
+      "detail": "36;pressure=40;count=6"
+    },
+    {
+      "time": 893.5,
+      "event": "district",
+      "detail": "roots"
+    },
+    {
+      "time": 894.2,
+      "event": "district",
+      "detail": "sump"
+    },
+    {
+      "time": 902.8,
+      "event": "stack",
+      "detail": "coolShield x8"
+    },
+    {
+      "time": 902.9,
+      "event": "stack",
+      "detail": "rage x7"
+    },
+    {
+      "time": 902.9,
+      "event": "stack",
+      "detail": "vent x7"
+    },
+    {
+      "time": 903,
+      "event": "stack",
+      "detail": "fullRange x7"
+    },
+    {
+      "time": 903,
+      "event": "stack",
+      "detail": "airJump x7"
+    },
+    {
+      "time": 915.5,
+      "event": "stack",
+      "detail": "knock x9"
+    },
+    {
+      "time": 915.5,
+      "event": "stack",
+      "detail": "shieldBurst x8"
+    },
+    {
+      "time": 915.5,
+      "event": "stack",
+      "detail": "heavyArea x8"
+    },
+    {
+      "time": 915.5,
+      "event": "stack",
+      "detail": "perfect x7"
+    },
+    {
+      "time": 915.5,
+      "event": "stack",
+      "detail": "stunRegen x7"
+    },
+    {
+      "time": 915.5,
+      "event": "stack",
+      "detail": "hot x8"
+    },
+    {
+      "time": 919.5,
+      "event": "district",
+      "detail": "roots"
+    },
+    {
+      "time": 921.5,
+      "event": "incursion",
+      "detail": "37;pressure=40;count=6"
+    },
+    {
+      "time": 933.5,
+      "event": "incursion",
+      "detail": "38;pressure=40;count=6"
+    },
+    {
+      "time": 941.5,
+      "event": "district",
+      "detail": "sump"
+    },
+    {
+      "time": 951.4,
+      "event": "stack",
+      "detail": "airPower x8"
+    },
+    {
+      "time": 951.5,
+      "event": "stack",
+      "detail": "vulnerable x8"
+    },
+    {
+      "time": 953,
+      "event": "stack",
+      "detail": "shatter x8"
+    },
+    {
+      "time": 953.8,
+      "event": "stack",
+      "detail": "freeze x9"
+    },
+    {
+      "time": 955,
+      "event": "stack",
+      "detail": "overflow x8"
+    },
+    {
+      "time": 959.3,
+      "event": "district",
+      "detail": "roots"
+    },
+    {
+      "time": 960.5,
+      "event": "district",
+      "detail": "pump"
+    },
+    {
+      "time": 964.7,
+      "event": "stack",
+      "detail": "mark x11"
+    },
+    {
+      "time": 964.8,
+      "event": "stack",
+      "detail": "battery x10"
+    },
+    {
+      "time": 964.9,
+      "event": "stack",
+      "detail": "multi x8"
+    },
+    {
+      "time": 965.8,
+      "event": "stack",
+      "detail": "glass x7"
+    },
+    {
+      "time": 966,
+      "event": "stack",
+      "detail": "slam x7"
+    },
+    {
+      "time": 966,
+      "event": "stack",
+      "detail": "ram x9"
+    },
+    {
+      "time": 966,
+      "event": "stack",
+      "detail": "discharge x10"
+    },
+    {
+      "time": 966.6,
+      "event": "district",
+      "detail": "sump"
+    },
+    {
+      "time": 969.1,
+      "event": "stack",
+      "detail": "stunKnock x7"
+    },
+    {
+      "time": 972.8,
+      "event": "district",
+      "detail": "pump"
+    },
+    {
+      "time": 974.7,
+      "event": "district",
+      "detail": "sump"
+    },
+    {
+      "time": 976.6,
+      "event": "district",
+      "detail": "pump"
+    },
+    {
+      "time": 979.5,
+      "event": "district",
+      "detail": "forge"
+    },
+    {
+      "time": 982.2,
+      "event": "district",
+      "detail": "rest"
+    },
+    {
+      "time": 988.5,
+      "event": "district",
+      "detail": "sump"
+    },
+    {
+      "time": 993.4,
+      "event": "district",
+      "detail": "rest"
+    },
+    {
+      "time": 995.3,
+      "event": "district",
+      "detail": "cold"
+    },
+    {
+      "time": 996.1,
+      "event": "district",
+      "detail": "rest"
+    },
+    {
+      "time": 997.7,
+      "event": "district",
+      "detail": "cold"
+    },
+    {
+      "time": 1002.6,
+      "event": "district",
+      "detail": "station"
+    },
+    {
+      "time": 1005.5,
+      "event": "district",
+      "detail": "glass"
+    },
+    {
+      "time": 1005.9,
+      "event": "district",
+      "detail": "station"
+    },
+    {
+      "time": 1006.6,
+      "event": "district",
+      "detail": "glass"
+    },
+    {
+      "time": 1008.9,
+      "event": "district",
+      "detail": "station"
+    },
+    {
+      "time": 1012.1,
+      "event": "site",
+      "detail": "station-med"
+    },
+    {
+      "time": 1014.9,
+      "event": "district",
+      "detail": "crown"
+    },
+    {
+      "time": 1017.2,
+      "event": "district",
+      "detail": "station"
+    },
+    {
+      "time": 1017.9,
+      "event": "district",
+      "detail": "cold"
+    },
+    {
+      "time": 1019.2,
+      "event": "district",
+      "detail": "rest"
+    },
+    {
+      "time": 1019.6,
+      "event": "district",
+      "detail": "forge"
+    },
+    {
+      "time": 1021.7,
+      "event": "district",
+      "detail": "pump"
+    },
+    {
+      "time": 1024.9,
+      "event": "district",
+      "detail": "sump"
+    },
+    {
+      "time": 1029.4,
+      "event": "extract",
+      "detail": "cargo=3145; slots=mark,conduit,ram,battery,spread,leech,speed,knock,discharge,freeze,shatter,heavyArea,airPower,shieldBurst,glass,hot,vulnerable,coolShield,overflow,stunRegen,vent,airJump,rage,perfect,fullRange,stunKnock,multi,slam"
+    }
+  ],
+  "feedback": ""
+}

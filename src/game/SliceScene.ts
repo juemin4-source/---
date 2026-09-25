@@ -5,6 +5,7 @@ import { guideHTML, nextBuildTarget, fieldBuilds } from "./BuildGuide";
 import { Renderer } from "../engine/Renderer";
 import { Synth } from "../engine/Effects";
 import { idleControls } from "../engine/Player";
+import { GameKeyboard } from "../engine/GameKeyboard";
 import { SliceWorld, freshSave, parseSave, SAVE_KEY, type Save } from "./SliceWorld";
 import { renderJuice, juiceStyle, juiceBannerHTML } from "./JuiceRender";
 import {
@@ -26,7 +27,8 @@ export class SliceScene extends Phaser.Scene {
   world = new SliceWorld();
   art!: Renderer;
   synth = new Synth();
-  keys!: Record<string, Phaser.Input.Keyboard.Key>;
+  keyboard!: GameKeyboard;
+  keys!: GameKeyboard["keys"];
   edges = new Set<string>();
   save: Save = freshSave();
   started = false;
@@ -69,11 +71,10 @@ export class SliceScene extends Phaser.Scene {
     this.persist();
     this.world = new SliceWorld(this.save.shortcut, this.save.trips + 1);
     this.art = new Renderer(this);
-    this.keys = this.input.keyboard!.addKeys(
-      "A,D,S,SPACE,SHIFT,E,Q,H,F,B,R,TAB,ESC,M,ONE,TWO,THREE,FOUR,FIVE,SIX,SEVEN,EIGHT,NINE",
-    ) as typeof this.keys;
-    for (const [name, key] of Object.entries(this.keys)) key.on("down", () => this.edges.add(name));
-    this.input.keyboard!.addCapture(["TAB", "SPACE"]);
+    this.keyboard = new GameKeyboard(window);
+    this.keys = this.keyboard.keys;
+    this.edges = this.keyboard.edges;
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.keyboard.destroy());
     this.input.mouse!.disableContextMenu();
     this.input.on("pointerdown", () => this.synth.unlock());
     this.overlay.addEventListener("click", (e) => {
@@ -107,7 +108,7 @@ export class SliceScene extends Phaser.Scene {
     }
   }
   resetInput() {
-    this.input.keyboard?.resetKeys();
+    this.keyboard?.reset();
     this.edges.clear();
     const p = this.input.activePointer,
       x = p.x,
@@ -791,7 +792,7 @@ export class SliceScene extends Phaser.Scene {
       <div class="slice-zone"><small>${w.ascent ? "沉井 → 地表 / 上行探索" : w.zone.subtitle}</small><h2>${w.training ? `第 ${w.wave} 波 · 持续增压` : (w.ascent?.title ?? w.zone.name)}</h2><span>${w.training ? `敌人生命 ×${number(w.enemyHealthScale())} · 场上 ${w.enemies.filter((e) => !e.dead).length}` : w.ascent ? `已上行 ${Math.max(0, Math.round((3096 - p.y) / 40))}m · Tab 剖面地图` : w.zone.risk ? "危险 " + "◆".repeat(w.zone.risk) : "安全区"}</span><p class="combat-readout">5 秒 DPS <b>${number(w.dps)}</b><br>撞墙 ${w.metrics.wallCharges} · 传导 ${w.metrics.transmissions}<br>冻结 ${w.metrics.freezes} · 碎冰 ${w.metrics.shatters}${w.unlimited ? `<br>异变等级 ${w.ascent?.pressure ?? 0} · 增援 ${w.ascent?.reinforcements ?? 0}<br>新生敌人生命 ×${w.ascent?.healthScale.toFixed(1)} / 伤害 ×${w.ascent?.damageScale.toFixed(1)}` : ""}</p></div>
       ${guide}<div class="slice-vitals"><div>生命 <b>${Math.ceil(p.hp)} / ${p.maxHp} ${w.shield > 0 ? `＋盾 ${number(w.shield)}` : ""}</b></div><div class="slice-health"><i style="width:${(p.hp / p.maxHp) * 100}%"></i></div><div>充能 <b>${w.energy} / ${w.energyMax}</b></div><small>体质 ${w.vitalityLevel} · 下一级 ${6 - (w.collectedLayers % 6)} 层 · 回生膜 +${10 * w.count("leech")} 生命</small><small>体力 ${Math.round(w.stamina)} / 100　热量 ${Math.round(w.heat)} / 100</small><div class="resource-meter"><i style="width:${w.heat}%;background:${w.overheated ? "#ff687d" : "#d5a86b"}"></i></div><small>${weapons[a.primary].name}</small><small>${weaponStatus}</small><small>${secondaries[a.secondary].name} · ${w.grenadeCooldown > 0 ? w.grenadeCooldown.toFixed(1) + "s" : "就绪"}</small><small>H 治疗 ×${w.medkits} ${a.secondary === "drone" ? ` · 无人机储备 ${a.droneStock}` : ""}</small></div>
       <div class="slice-message">${w.messageTime > 0 ? escape(w.message) : ""}</div><div class="slice-prompt">${n?.label ?? ""}</div>
-      <footer class="slice-bottom">${w.unlimited ? `<div class="collection-count">${w.slots.length} 种 · ${w.totalLayers} 层 · 靠近自动接入 · B 查看全部效果</div>` : ""}<div class="slice-slots ${w.unlimited ? "unlimited-slots" : ""}">${Array.from({ length: w.unlimited ? Math.max(1, w.slots.length) : 6 }, (_, i) => this.slotCard(w.slots[i], i)).join("")}</div><div class="slice-controls">A D 移动 · Space 跳 · Shift 冲刺 · F 下砸 | 左键主武器 · Q 副武器 · 右键盾 · H 治疗 | 1–9 换武器 · B 配装台 · E 接入</div></footer>`;
+      <footer class="slice-bottom">${w.unlimited ? `<div class="collection-count">${w.slots.length} 种 · ${w.totalLayers} 层 · 靠近自动接入 · B 查看全部效果</div>` : ""}<div class="slice-slots ${w.unlimited ? "unlimited-slots" : ""}">${Array.from({ length: w.unlimited ? Math.max(1, w.slots.length) : 6 }, (_, i) => this.slotCard(w.slots[i], i)).join("")}</div><div class="slice-controls">A D 移动 · Space 二段跳 · Shift 冲刺 · F 下砸 | 左键主武器 · Q 副武器 · 右键盾 · H 治疗 | 1–9 换武器 · B 配装台 · E 接入</div></footer>`;
   }
   panel(body: string, wide = false) {
     return `<section class="slice-panel ${wide ? "wide" : ""}">${body}</section>`;
@@ -847,7 +848,7 @@ export class SliceScene extends Phaser.Scene {
     if (!state) return;
     if (state === "intro") {
       this.overlay.innerHTML = this.panel(
-        `<div class="slice-eyebrow">EVER ECLIPSE / 0.9</div><h1 class="slice-title">永蚀<span>器官猎场</span></h1><p class="slice-lead">猎取敌人的能力。<br>拼出你的组合，决定何时带它们回家。</p><div class="slice-intro-grid"><div><small>01 / 猎取</small><b>看清携带者</b><p>敌人头顶标出器官。击杀后按 E 查看，接入六个槽位。</p></div><div><small>02 / 组合</small><b>改变战斗方式</b><p>撞墙积攒充能，或用印记连接敌群。同类靠近自动叠层。无限版可同时接入所有类型；六槽版保留取舍。</p></div><div><small>03 / 撤离</small><b>活着带回收获</b><p>任何时候都能返回气闸。死亡丢失本局收获；从上方接通升降台，缩短回程。</p></div></div><button class="slice-primary" data-action="start-unlimited">无限收集 · 进入沉井<span>∞</span></button><button class="slice-secondary" data-action="start-six">六槽探索 · 对照版本<span>↑</span></button><p class="slice-muted">无限版：所有地面器官靠近自动接入，包含有代价的模块；本地增援持续掉落 28 种模块，随收集与时间变强。六槽版：仅已装的同类自动拾取。</p><button class="slice-secondary" data-action="train-unlimited">无尽训练 · 无限槽<span>∞</span></button><button class="slice-secondary" data-action="train">无尽训练 · 六槽<span>↗</span></button><p class="slice-muted">A D 移动 · Space 跳跃 · 左键射击 · Shift 冲刺 · E 交互 · Tab 地图 · R 推荐 build<br>九件武器 · B 武器配装台 · 当前档案：${this.save.research.length}/${organIds.length} 器官 · 已带回 ${this.save.bank} 样本 · 上方通电解锁本趟升降台</p>${this.interrupted ? '<p class="slice-notice">上一趟出行中断，未结算收获已丢失。已带回的进度仍保留。</p>' : ""}<p class="slice-notice">${this.storageWarning}</p>`,
+        `<div class="slice-eyebrow">EVER ECLIPSE / 0.9</div><h1 class="slice-title">永蚀<span>器官猎场</span></h1><p class="slice-lead">猎取敌人的能力。<br>拼出你的组合，决定何时带它们回家。</p><div class="slice-intro-grid"><div><small>01 / 猎取</small><b>看清携带者</b><p>敌人头顶标出器官。击杀后按 E 查看，接入六个槽位。</p></div><div><small>02 / 组合</small><b>改变战斗方式</b><p>撞墙积攒充能，或用印记连接敌群。同类靠近自动叠层。无限版可同时接入所有类型；六槽版保留取舍。</p></div><div><small>03 / 撤离</small><b>活着带回收获</b><p>任何时候都能返回气闸。死亡丢失本局收获；从上方接通升降台，缩短回程。</p></div></div><button class="slice-primary" data-action="start-unlimited">无限收集 · 进入沉井<span>∞</span></button><button class="slice-secondary" data-action="start-six">六槽探索 · 对照版本<span>↑</span></button><p class="slice-muted">无限版：所有地面器官靠近自动接入，包含有代价的模块；本地增援持续掉落 28 种模块，随收集与时间变强。六槽版：仅已装的同类自动拾取。</p><button class="slice-secondary" data-action="train-unlimited">无尽训练 · 无限槽<span>∞</span></button><button class="slice-secondary" data-action="train">无尽训练 · 六槽<span>↗</span></button><p class="slice-muted">A D 移动 · Space 二段跳 · 左键射击 · Shift 冲刺 · E 交互 · Tab 地图 · R 推荐 build<br>九件武器 · B 武器配装台 · 当前档案：${this.save.research.length}/${organIds.length} 器官 · 已带回 ${this.save.bank} 样本 · 上方通电解锁本趟升降台</p>${this.interrupted ? '<p class="slice-notice">上一趟出行中断，未结算收获已丢失。已带回的进度仍保留。</p>' : ""}<p class="slice-notice">${this.storageWarning}</p>`,
         true,
       );
     } else if (w.result && w.training) {
@@ -890,7 +891,7 @@ export class SliceScene extends Phaser.Scene {
     else if (state === "map") this.overlay.innerHTML = this.mapHTML();
     else if (state === "help")
       this.overlay.innerHTML = this.panel(
-        `<div class="slice-eyebrow">战地手册 / 当前暂停</div><h1>把组合打出来。</h1><p>1–5 切换手炮、热负荷步枪、贯穿狙击、节律匕首、重锤。鼠标瞄准，左键攻击；狙击按住蓄力松开射击，匕首跟随 HUD 节拍点按。</p><p>西线：冲撞腺让 Shift 撞人 → 压电骨从撞墙得到充能 → 放电髓强化第五发。Q 手雷也能帮助撞墙。</p><p>东线：刻印眼连续三击挂印 → 共鸣索把伤害传给其他印记目标 → 播种囊让印记从死亡目标向外扩散。</p><p>6–9 切换盾、手雷、无人机、炮台。盾按住右键；其余按 Q，手雷松开时投掷。H 治疗；Space 跳跃，S 下落，F 空中下砸。B 打开配装台；训练场 Tab 也打开训练台，探索时 Tab 查看地图。</p><p>去母巢不是撤离条件。回到底部沉井气闸，按住 E 两秒即可结算。中庭和货运站的开关开启本次出行的实体升降台；R 查看推荐组合和来源。</p><button class="slice-primary" data-action="resume">返回猎场</button>`,
+        `<div class="slice-eyebrow">战地手册 / 当前暂停</div><h1>把组合打出来。</h1><p>1–5 切换手炮、热负荷步枪、贯穿狙击、节律匕首、重锤。鼠标瞄准，左键攻击；狙击按住蓄力松开射击，匕首跟随 HUD 节拍点按。</p><p>西线：冲撞腺让 Shift 撞人 → 压电骨从撞墙得到充能 → 放电髓强化第五发。Q 手雷也能帮助撞墙。</p><p>东线：刻印眼连续三击挂印 → 共鸣索把伤害传给其他印记目标 → 播种囊让印记从死亡目标向外扩散。</p><p>6–9 切换盾、手雷、无人机、炮台。盾按住右键；其余按 Q，手雷松开时投掷。H 治疗；Space 二段跳，S 下落，F 空中下砸。B 打开配装台；训练场 Tab 也打开训练台，探索时 Tab 查看地图。</p><p>去母巢不是撤离条件。回到底部沉井气闸，按住 E 两秒即可结算。中庭和货运站的开关开启本次出行的实体升降台；R 查看推荐组合和来源。</p><button class="slice-primary" data-action="resume">返回猎场</button>`,
       );
     else
       this.overlay.innerHTML = this.panel(
