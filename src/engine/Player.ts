@@ -50,6 +50,10 @@ export class Player extends Body {
   trails: { x: number; y: number; life: number }[] = [];
   /** Run-speed multiplier set by the game layer (e.g. frenzy). */
   moveScale = 1;
+  /** Carrying heavy cargo scales these down; all default to 1 so base movement feel is unchanged. */
+  cargoSpeed = 1;
+  cargoJump = 1;
+  cargoDash = 1;
   constructor() {
     super(130, 580, 25, 48);
   }
@@ -74,7 +78,7 @@ export class Player extends Body {
     if (c.dash && this.dashCooldown <= 0) {
       this.dashTime = 0.14;
       this.dashCooldown = 0.48;
-      this.vx = (dir || this.moveFacing) * 880;
+      this.vx = (dir || this.moveFacing) * 880 * this.cargoDash;
       this.vy = 0;
       this.invulnerable = Math.max(this.invulnerable, 0.14);
     }
@@ -94,13 +98,13 @@ export class Player extends Body {
       if (this.vx === 0) this.dashTime = 0;
       return;
     }
-    const target = dir * 325 * this.moveScale;
+    const target = dir * 325 * this.moveScale * this.cargoSpeed;
     const acceleration = this.grounded ? (dir ? 6200 : 7800) : dir ? 3800 : 2400;
     this.vx += clamp(target - this.vx, -acceleration * dt, acceleration * dt);
     this.vx += this.externalX * dt;
     this.externalX *= Math.exp(-5 * dt);
     if (this.jumpBuffer > 0 && this.coyote > 0) {
-      this.vy = -610;
+      this.vy = -610 * this.cargoJump;
       this.jumpBuffer = 0;
       this.coyote = 0;
       this.grounded = false;
@@ -110,7 +114,7 @@ export class Player extends Body {
       this.airJumpAvailable = false;
       this.airJumped = true;
       this.jumped = true;
-      this.vy = -590;
+      this.vy = -590 * this.cargoJump;
       this.jumpBuffer = 0;
       this.grounded = false;
       this.squash = -0.18;

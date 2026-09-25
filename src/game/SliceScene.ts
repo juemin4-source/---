@@ -130,7 +130,15 @@ export class SliceScene extends Phaser.Scene {
     return v;
   }
   start(training = false, unlimited = false) {
-    this.world = new SliceWorld(this.save.shortcut, this.save.trips + 1, training, !training, unlimited);
+    // Non-training runs are 0.10 expeditions: authored map plus a living ecosystem.
+    this.world = new SliceWorld(
+      this.save.shortcut,
+      this.save.trips + 1,
+      training,
+      !training,
+      unlimited,
+      !training,
+    );
     this.started = true;
     this.paused = false;
     this.cameras.main.setBounds(0, 0, this.world.width, this.world.height);
@@ -274,15 +282,16 @@ export class SliceScene extends Phaser.Scene {
     this.resetInput();
   }
   exportRun() {
+    const ex = this.world.expedition;
     const data = {
-      version: "0.9",
+      version: "0.10",
       unlimited: this.world.unlimited,
       collectedLayers: this.world.collectedLayers,
       pressure: this.world.ascent?.pressure,
       reinforcements: this.world.ascent?.reinforcements,
-      map: this.world.ascent ? "handcrafted-ascent" : "training",
+      map: ex ? "expedition-ecosystem" : this.world.ascent ? "handcrafted-ascent" : "training",
       trackedBuild: this.world.ascent?.trackedBuild,
-      openedSites: this.world.ascent ? [...this.world.ascent.opened] : [],
+      openedSites: ex ? [...ex.open] : this.world.ascent ? [...this.world.ascent.opened] : [],
       training: this.world.training,
       wave: this.world.wave,
       weapon: this.world.armory.primary,
@@ -299,6 +308,32 @@ export class SliceScene extends Phaser.Scene {
       metrics: this.world.metrics,
       events: this.world.log,
       feedback: this.feedback,
+      // 0.10 telemetry: the three questions a run has to answer (where did I go, what did I get,
+      // what did the world become while I was there).
+      routeSummary: ex
+        ? {
+            district: ex.district,
+            districtsVisited: ex.metrics.districtTransitions,
+            distance: Math.round(ex.metrics.distanceTravelled),
+            shortcutsOpened: [...ex.open],
+            extractorPower: ex.power,
+            threatAtExtract: ex.metrics.threatAtExtract,
+          }
+        : undefined,
+      lootSummary: ex
+        ? {
+            carriedValue: ex.cargo.value,
+            carriedWeight: ex.cargo.weight,
+            carriedSlots: `${ex.cargo.size}/${ex.cargo.capacity}`,
+            heavy: ex.cargo.items.filter((i) => i.def.heavy).map((i) => i.def.name),
+            found: ex.metrics.lootValueFound,
+            extracted: ex.metrics.lootValueExtracted,
+            lost: ex.metrics.lootValueLost,
+          }
+        : undefined,
+      ecologySummary: ex ? ex.summary() : undefined,
+      expeditionMetrics: ex?.metrics,
+      expeditionEvents: ex?.events,
     };
     const url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: "application/json" }));
     const a = document.createElement("a");

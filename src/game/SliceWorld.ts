@@ -7,6 +7,8 @@ import { organs, organIds, builds, zones, type OrganId } from "./config";
 import { EnemyCombat } from "./EnemyCombat";
 import type { WeaponId, SecondaryId } from "./config";
 import { Ascent } from "./Ascent";
+import { Expedition } from "./expedition/Expedition";
+import { districts } from "./expedition/ExpeditionMap";
 import { Armory } from "./Armory";
 import { Juice, feel } from "./Juice";
 import { OrganLoadout } from "./OrganLoadout";
@@ -132,6 +134,10 @@ export function parseSave(raw: string | null): Save {
 export class SliceWorld extends World {
   declare enemies: Carrier[];
   ascent: Ascent | null = null;
+  /** 0.10 run: map + ecology + loot. Replaces the ascent tower for expedition runs. */
+  expedition: Expedition | null = null;
+  /** Eco creature id carried on each body, so a kill can be reported back to the ecology. */
+  ecoIds = new WeakMap<Carrier, number>();
   zoneId = "hub";
   areas: Record<string, Area> = {};
   slots: OrganId[] = [];
@@ -148,6 +154,13 @@ export class SliceWorld extends World {
   extraction = 0;
   extracting = false;
   hurtAt = -10;
+  /** Time of the last attack the player made, so searching can be cancelled by attacking. */
+  attackedAt = -10;
+  /** Set when the player took damage during this frame, for search interruption. */
+  hurtThisFrame = false;
+  attackedRecently() {
+    return this.time - this.attackedAt < 0.12;
+  }
   result: "extracted" | "dead" | null = null;
   shotHeavy = new WeakSet<Projectile>();
   pendingDrop: Drop | null = null;
@@ -205,6 +218,8 @@ export class SliceWorld extends World {
     public training = false,
     ascending = false,
     public unlimited = false,
+    /** Start the 0.10 ecosystem expedition rather than the legacy 0.9 ascent tower. */
+    expeditionRun = false,
   ) {
     super(false);
     this.modules = [];
@@ -212,7 +227,12 @@ export class SliceWorld extends World {
     this.messageTime = 0;
     this.enter(training ? "arena" : "hub");
     if (training) this.startWave();
-    else if (ascending)
+    else if (ascending) this.startExpedition(seed, !expeditionRun);
+  }
+
+  /** Start a 0.10 expedition. `legacyTower` keeps the old ascent available for comparison runs. */
+  startExpedition(seed: number, legacyTower = false) {
+    if (legacyTower) {
       this.ascent = new Ascent(this, (h) => {
         const e = new Carrier(h.kind, h.x, h.floor, h.organ, 1);
         e.y = h.floor - e.h / 2;
@@ -223,6 +243,21 @@ export class SliceWorld extends World {
         e.secondary = h.secondary ?? null;
         return e;
       });
+      return;
+    }
+    // The 0.10 expedition: authored map, living ecosystem, loot and two extractors.
+    this.expedition = new Expedition(this, seed, (c, district) => {
+      const d = districts.find((x) => x.id === district)!;
+      const e = new Carrier(c.kind, c.x, d.floor - 24, c.organs.toJSON(), 1);
+      e.y = d.floor - e.h / 2;
+      e.homeY = e.y;
+      e.hp = e.maxHp = c.hp;
+      e.boundsWidth = this.width;
+      e.weapon = c.weapon;
+      e.secondary = c.secondary;
+      this.ecoIds.set(e, c.id);
+      return e;
+    });
   }
   get slotLimit() {
     return this.unlimited ? Infinity : 6;
@@ -468,8 +503,47 @@ export class SliceWorld extends World {
     this.enter(to, from);
     return true;
   }
+  /** Interaction prompts for a 0.10 expedition: search, shortcuts, extracts, drops. */
+  expeditionNearby() {
+    const ex = this.expedition!,
+      p = this.player;
+    if (ex.search.pile)
+      return {
+        type: "search" as const,
+        label: `搜索中 ${Math.round(ex.search.progress * 100)}% · 松开 E 或受击会中断`,
+      };
+    const pile = ex.nearestPile(p.x, p.y);
+    if (pile)
+      return {
+        type: "search" as const,
+        label: `按住 E 搜索 ${pile.source} · 难度 ${pile.difficulty.toFixed(1)} · 有噪音`,
+      };
+    const sc = ex.shortcutAt(p.x, p.y);
+    if (sc && !ex.open.has(sc.id))
+      return { type: "shortcut" as const, label: `E 打开 ${sc.name} · ${sc.note}` };
+    const fx = ex.extractorAt(p.x, p.y);
+    if (fx) {
+      const blocked = ex.extractBlocked(fx);
+      return {
+        type: "exit" as const,
+        short: blocked ? undefined : "按住 E 2 秒 · 撤离",
+        label: blocked ?? `按住 E 两秒 · 从${fx.name}撤离 · 货物价值 ${ex.cargo.value}`,
+      };
+    }
+    const expDrop = this.drops
+      .filter((d) => distance(d, p) < 88)
+      .sort((a, b) => distance(a, p) - distance(b, p))[0];
+    if (expDrop)
+      return {
+        type: "drop" as const,
+        drop: expDrop,
+        label: `E 查看 / 接入「${organs[expDrop.organ].name}」`,
+      };
+    return null;
+  }
   nearby() {
     if (this.ascent) return this.ascent.nearby();
+    if (this.expedition) return this.expeditionNearby();
     const p = this.player;
     // Standing directly at a door/chest must remain usable even if a duplicate organ lands there.
     const closePortal = this.zone.portals.find(
@@ -504,6 +578,11 @@ export class SliceWorld extends World {
     if (n.type === "drop") {
       this.pendingDrop = n.drop;
       if (this.has(n.drop.organ) || this.unlimited) this.equip();
+    }
+    if (n.type === "shortcut") {
+      const name = this.expedition?.openShortcut(this.player.x, this.player.y);
+      if (name) this.say(`${name} 已打开 · 路线缩短`);
+      return;
     }
     if (n.type === "portal") this.travel(n.portal.to);
     if (n.type === "chest") {
@@ -590,6 +669,10 @@ export class SliceWorld extends World {
     this.emit("phase", this.player.x, this.player.y);
   }
   projectileHit = false;
+  /** Called by the armory whenever the player commits to an attack, so searching breaks. */
+  noteAttack() {
+    this.attackedAt = this.time;
+  }
   override hurtPlayer(amount: number, fromX: number) {
     if (this.dead || this.god) return;
     if (this.player.invulnerable > 0) {
@@ -634,6 +717,8 @@ export class SliceWorld extends World {
       this.juice.hurt();
       this.juice.beat("hurt", this.player.x, this.player.y);
       this.hurtAt = this.time;
+      // Any real damage cancels an in-progress search: greed must cost you the hold.
+      this.hurtThisFrame = true;
       this.metrics.damage += before - this.player.hp;
       this.extraction = 0;
     }
@@ -713,6 +798,10 @@ export class SliceWorld extends World {
       angle = Math.atan2(e.y - this.player.y, e.x - this.player.x);
     if (direct) this.juice.beat(heavy ? "heavy" : "hit", e.x, e.y, heavy ? 0xffc57d : 0xfff0c9, angle);
     if (e.dead) {
+      // A creature killed by the player becomes food for the ecosystem: the player's own kills
+      // are what feeds the world's growth, which is the core 搜打撤 feedback loop.
+      const ecoId = this.ecoIds.get(e);
+      if (ecoId !== undefined && this.expedition) this.expedition.onEnemyKilled(e, ecoId);
       const elite = e.kind === "elite";
       this.juice.kill(elite);
       this.juice.beat(elite ? "eliteKill" : "kill", e.x, e.y, color, angle);
@@ -1165,6 +1254,15 @@ export class SliceWorld extends World {
     this.grenades = this.grenades.filter((g) => g.life > 0);
     this.autoCollect();
     this.ascent?.update(dt, c);
+    this.expedition?.update(dt, c, interactHeld, this.hurtThisFrame, this.attackedRecently());
+    this.hurtThisFrame = false;
+    if (this.expedition) {
+      // Heavy cargo changes mobility directly, which is what makes carrying it a decision.
+      const pen = this.expedition.penalty();
+      p.cargoSpeed = pen.speed;
+      p.cargoJump = pen.jump;
+      p.cargoDash = pen.dash;
+    }
     if (p.y > this.height + 40) this.hurtPlayer(100, p.x);
     this.extracting = interactHeld && this.nearby()?.type === "exit" && this.time - this.hurtAt > 1;
     this.extraction = this.extracting ? this.extraction + dt : 0;
@@ -1172,6 +1270,15 @@ export class SliceWorld extends World {
       this.result = "extracted";
       this.complete = true;
       this.record("extract", `cargo=${this.cargo}; slots=${this.slots.join(",")}`);
+      if (this.expedition) {
+        // Bank the carried value: only what is on you at the extractor counts.
+        this.expedition.metrics.lootValueExtracted += this.expedition.cargo.value;
+        this.expedition.metrics.heavyExtracted += this.expedition.cargo.items.filter(
+          (i) => i.def.heavy,
+        ).length;
+        this.expedition.metrics.threatAtExtract = +this.expedition.eco.threat().toFixed(2);
+        this.cargo += this.expedition.cargo.value;
+      }
     }
     if (this.training) {
       this.enemies = this.enemies.filter((e) => !e.dead);

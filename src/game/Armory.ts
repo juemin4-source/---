@@ -67,6 +67,8 @@ export class Armory {
   ) {
     const w = this.w,
       powered = heavy && w.count("discharge") > 0 && w.energy > 0;
+    // Committing to an attack cancels an in-progress search, so you cannot search and fight at once.
+    w.noteAttack();
     if (powered) {
       w.energy--;
       damage += 32 * w.count("discharge");
@@ -90,6 +92,7 @@ export class Armory {
   melee(damage: number, heavy: boolean, radius: number) {
     const w = this.w,
       p = w.player;
+    w.noteAttack();
     this.swing = { radius: w.attackRange(radius), life: 0.2, angle: p.aim, heavy };
     let powered = false;
     if (heavy && w.count("discharge") && w.energy > 0) {
