@@ -19,9 +19,6 @@ export class Ascent {
   opened = new Set<string>();
   discovered = new Set<string>();
   homes = new Map<number, Habitat>();
-  pressure = 0;
-  reinforcements = 0;
-  nextIncursion = 24;
   spawnSerial = 0;
   trackedBuild = "";
   riding = "";
@@ -41,7 +38,6 @@ export class Ascent {
     w.enemies = habitats.map((h) => {
       const e = make(h);
       this.homes.set(e.id, h);
-      if (w.unlimited) this.scaleEnemy(e);
       return e;
     });
     w.player.x = 1500;
@@ -57,52 +53,11 @@ export class Ascent {
     }
     w.say("从沉井向上 · 左泵房 / 右根室 · Tab 查看实地地图");
   }
-  get healthScale() {
-    return Math.min(500, 1.35 * 1.32 ** this.pressure);
-  }
-  get damageScale() {
-    return Math.min(4, 1.1 + 0.12 * this.pressure);
-  }
-  scaleEnemy(e: Carrier) {
-    e.hp = e.maxHp = Math.round(e.maxHp * this.healthScale);
-    e.damageFactor = this.damageScale;
-  }
-  incursion() {
-    const w = this.w;
-    if (!w.unlimited || w.player.y > 2820 || this.area?.id === "rest" || this.riding) return 0;
-    const anchors = habitats.filter(
-      (h) =>
-        h.kind !== "elite" &&
-        !h.nest &&
-        Math.abs(h.floor - 24 - w.player.y) < 220 &&
-        Math.abs(h.x - w.player.x) >= 200 &&
-        Math.abs(h.x - w.player.x) < 850,
-    );
-    const room = 36 - w.enemies.filter((e) => !e.dead).length;
-    if (!anchors.length || room <= 0) return 0;
-    const count = Math.min(room, 2 + Math.floor(this.pressure / 3), 6);
-    for (let i = 0; i < count; i++) {
-      const anchor = anchors[(this.spawnSerial + i) % anchors.length];
-      const serial = this.spawnSerial++,
-        h = {
-          ...anchor,
-          id: `incursion-${serial}`,
-          organ: organIds[serial % organIds.length],
-          nest: undefined,
-          x: anchor.x + (i % 2 ? 32 : -32),
-          hp: anchor.hp * (1 + 0.1 * Math.floor(this.reinforcements / 3)),
-        };
-      const e = this.make(h);
-      this.scaleEnemy(e);
-      e.spawnGrace = 1.5;
-      this.homes.set(e.id, h);
-      w.enemies.push(e);
-    }
-    this.reinforcements++;
-    w.record("incursion", `${this.reinforcements};pressure=${this.pressure};count=${count}`);
-    w.say(`异变增援 ${this.reinforcements} · ${count} 只 · 新生敌人生命 ×${this.healthScale.toFixed(1)}`);
-    return count;
-  }
+  /**
+   * There is deliberately NO pressure / healthScale / damageScale / incursion here. Danger in
+   * 永蚀 comes from the ecosystem the player disturbs, never from elapsed time — a timer that
+   * silently multiplies enemy health is exactly the model 0.10 was written to delete.
+   */
   get area() {
     return districts.find(
       (d) =>
@@ -219,25 +174,6 @@ export class Ascent {
   update(dt: number, c: Controls) {
     const w = this.w,
       area = this.area;
-    if (w.unlimited) {
-      this.pressure = Math.min(
-        40,
-        Math.max(this.pressure, Math.floor(w.collectedLayers / 6) + Math.floor(w.time / 90)),
-      );
-      if (w.time >= this.nextIncursion) {
-        this.incursion();
-        this.nextIncursion = w.time + Math.max(12, 24 - this.pressure);
-      }
-      w.enemies = w.enemies.filter((e) => {
-        const h = this.homes.get(e.id);
-        if (e.dead && h?.id.startsWith("incursion-")) {
-          this.homes.delete(e.id);
-          this.awakened.delete(e.id);
-          return false;
-        }
-        return true;
-      });
-    }
     if (area && area.id !== this.district) {
       this.district = area.id;
       this.discovered.add(area.id);

@@ -66,63 +66,38 @@ describe("自动拾取与无限收集", () => {
     original.interact();
     expect(original.pendingDrop?.organ).toBe("knock");
   });
-  it("增强只作用出生，收集六层和时间会增强后续增援，旧怪不回血", () => {
+  it("0.10 删除了时间增压：沉井不再有 pressure / incursion / healthScale", () => {
+    // The point of 0.10: danger comes from the ecosystem the player disturbs, never from elapsed
+    // time. This fails loudly if the timer-based model is ever reintroduced.
     const w = new SliceWorld(false, 1, false, true, true);
-    w.god = true;
-    w.player.x = 850;
-    w.player.y = 2676;
-    const old = w.enemies[0],
-      hp = old.hp;
-    w.hit(old, 10);
-    const injured = old.hp;
-    w.grant("speed", 6);
-    w.time = 91;
+    const a = w.ascent as unknown as Record<string, unknown>;
+    for (const gone of ["pressure", "incursion", "healthScale", "damageScale", "nextIncursion"])
+      expect(a[gone], `Ascent.${gone} 应已删除`).toBeUndefined();
+    // Enemy health must not grow with time: the same body keeps its health as the run ages.
+    const e = w.enemies[0],
+      hp = e.maxHp;
+    w.time = 900;
     w.step(0.02);
-    expect(w.ascent!.pressure).toBe(2);
-    expect(old.hp).toBe(injured);
-    expect(injured).toBe(hp - 10);
-    const rein = w.enemies.filter((e) => w.ascent!.homes.get(e.id)?.id.startsWith("incursion-"));
-    expect(rein.length).toBeGreaterThan(0);
-    for (const e of rein) {
-      expect(e.maxHp).toBeGreaterThan(w.ascent!.homes.get(e.id)!.hp);
-      expect(e.damageFactor).toBeGreaterThan(1.1);
-      expect(e.spawnGrace).toBeGreaterThan(1);
-    }
+    expect(e.maxHp).toBe(hp);
   });
-  it("安全气闸和中庭不增援；战斗区持续补怪且总存活数有上限", () => {
-    const w = new SliceWorld(false, 1, false, true, true);
-    expect(w.ascent!.incursion()).toBe(0);
-    w.player.y = 1836;
-    expect(w.ascent!.incursion()).toBe(0);
-    w.player.x = 850;
-    w.player.y = 2676;
-    for (let i = 0; i < 50; i++) w.ascent!.incursion();
-    expect(w.enemies.filter((e) => !e.dead)).toHaveLength(36);
-    const e = w.enemies.find((e) => w.ascent!.homes.get(e.id)?.id.startsWith("incursion-"))!;
-    e.dead = true;
-    expect(w.ascent!.incursion()).toBe(1);
+  it("生态出行不会因为玩家收集层数或时间而变强", () => {
+    const w = new SliceWorld(false, 1, false, true, true, true);
+    const ex = w.expedition!;
+    expect(ex.eco.alive.length).toBeGreaterThan(0);
+    w.grant("speed", 6);
+    w.time = 600;
+    w.step(0.02);
+    // Creature health is a function of organs and stage only, so nothing here is unbounded.
+    const after = ex.eco.alive.map((c) => c.maxHp);
+    expect(after.length).toBeGreaterThan(0);
+    expect(Math.max(...after)).toBeLessThan(2000);
   });
-  it("清除历次增援后仍能再刷，28 种掉落循环覆盖，六槽模式不增援", () => {
-    const w = new SliceWorld(false, 1, false, true, true);
-    w.god = true;
-    w.player.x = 850;
-    w.player.y = 2676;
-    const dropped = new Set<string>();
-    for (let i = 0; i < 20; i++) {
-      w.ascent!.incursion();
-      for (const e of w.enemies)
-        if (w.ascent!.homes.get(e.id)?.id.startsWith("incursion-")) {
-          dropped.add(e.organ);
-          e.dead = true;
-        }
-      w.step(0.01);
-    }
-    expect(dropped.size).toBe(28);
-    expect(w.enemies.length).toBe(21);
-    expect(w.ascent!.homes.size).toBe(21);
+  it("六槽与训练模式不产生生态出行；训练场仍按波次独立增压", () => {
     const six = new SliceWorld(false, 1, false, true);
-    six.player.x = 850;
-    six.player.y = 2676;
-    expect(six.ascent!.incursion()).toBe(0);
+    expect(six.ascent).toBeTruthy();
+    expect(six.expedition).toBeNull();
+    const t = new SliceWorld(false, 1, true);
+    expect(t.expedition).toBeNull();
+    expect(t.enemyHealthScale()).toBeGreaterThan(0);
   });
 });
