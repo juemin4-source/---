@@ -34,6 +34,25 @@ npm run build      # 生产构建到 dist/
 npm run format     # prettier 格式化
 ```
 
+浏览器验收与机器人试玩需要先启动 `npm run dev`：
+
+```powershell
+node scripts/run-browser.mjs scripts/browser/ascent-browser.js   # 浏览器验收
+node scripts/verify-feel.mjs                                    # 打击感验收
+node scripts/playtest.mjs 60 unlimited                          # 机器人试玩指标
+```
+
+## 战斗手感（0.9）
+
+| 机制 | 效果 |
+| --- | --- |
+| 顿帧 / 慢动作 | 命中冻结 12ms，重击 70ms，母体击杀 240ms + 0.9 秒慢动作；完美闪避/格挡 0.4 秒慢动作 |
+| 镜头 | 震动（trauma 平方衰减）、射击后坐、击杀推近、受击暗角与闪光 |
+| 粒子 / 尸体 | 火花、碎块、冲击环；敌人死后被击飞翻滚 |
+| 连杀狂热 | 3/7/13/22 杀四档，攻速最高 +48%、移速 +32%、伤害 +60%；受伤扣连杀时间 |
+| 破韧 | 持续命中打断敌人起手，硬直期间易伤 +45%，有冷却防锁死 |
+| 处决线 | 敌人生命低于 28% 时受到伤害 ×1.6 |
+
 首页入口：
 
 - **无限收集 · 进入沉井**（默认）：28 种模块无上限自动接入，持续增援，难度随收集与时间上升。
@@ -81,9 +100,10 @@ src/
     TrainingUI.ts   训练场面板
   styles/           界面样式
 tests/              vitest 机制测试
-scripts/browser/    playwright-cli 浏览器验收脚本（需先 npm run dev）
-scripts/playtest.mjs    机器人试玩，输出击杀/DPS/连杀等指标
+scripts/browser/    浏览器验收脚本（需先 npm run dev），说明见该目录 README
+scripts/run-browser.mjs 运行浏览器验收脚本
 scripts/verify-feel.mjs 打击感浏览器验收
+scripts/playtest.mjs    机器人试玩，输出击杀/DPS/连杀等指标
 art/                美术源文件
 output/             本地产物（截图、快照，不入库）
 ```

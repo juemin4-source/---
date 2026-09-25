@@ -5,6 +5,14 @@ import { chromium } from "playwright-core";
 const seconds = Number(process.argv[2] ?? 90);
 const mode = process.argv[3] ?? "unlimited";
 const god = process.argv[4] !== "mortal";
+// The six-slot mode cannot hold all 28 organs, so it gets a realistic mixed build instead.
+const grantIds =
+  mode === "six"
+    ? ["mark", "conduit", "spread", "speed", "leech", "heavyArea"]
+    : ((await (await import("node:fs/promises")).readFile("src/game/config.ts", "utf8"))
+        .match(/organIds = \[[^\]]*\]/s)?.[0]
+        .match(/"[a-zA-Z]+"/g)
+        ?.map((s) => s.slice(1, -1)) ?? []);
 const browser = await chromium.launch({ channel: "chrome", headless: true });
 const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
 const errors = [];
@@ -18,36 +26,39 @@ await page
 await page.waitForFunction(() => window.eclipseSlice.started && window.eclipseSlice.world.time > 0.2);
 
 // Give the bot a build so it can actually kill things, and keep it alive to measure output.
-await page.evaluate(async (god) => {
-  const { organIds } = await import("/src/game/config.ts");
-  const w = window.eclipseSlice.world;
-  for (const id of organIds) w.grant(id);
-  w.god = god;
-  w.juice.beats = 0;
-  w.juice.kills = 0;
-  const j = w.juice;
-  const original = j.beat.bind(j);
-  j.beat = (kind, ...rest) => {
-    j.beats++;
-    if (kind === "kill" || kind === "eliteKill") j.kills++;
-    return original(kind, ...rest);
-  };
-  // Time-to-kill sampling: record the first damage timestamp of each enemy.
-  w._firstHit = new Map();
-  w._ttk = [];
-  const originalHit = w.hit.bind(w);
-  w.hit = (e, ...rest) => {
-    if (!e.dead && !w._firstHit.has(e.id)) w._firstHit.set(e.id, w.time);
-    const wasAlive = !e.dead;
-    const r = originalHit(e, ...rest);
-    if (wasAlive && e.dead) {
-      const t = w._firstHit.get(e.id);
-      if (t !== undefined) w._ttk.push(w.time - t);
-      w._firstHit.delete(e.id);
-    }
-    return r;
-  };
-}, god);
+await page.evaluate(
+  async ({ god, ids }) => {
+    const w = window.eclipseSlice.world;
+    for (const id of ids) w.grant(id);
+    w.pendingDrop = null;
+    w.god = god;
+    w.juice.beats = 0;
+    w.juice.kills = 0;
+    const j = w.juice;
+    const original = j.beat.bind(j);
+    j.beat = (kind, ...rest) => {
+      j.beats++;
+      if (kind === "kill" || kind === "eliteKill") j.kills++;
+      return original(kind, ...rest);
+    };
+    // Time-to-kill sampling: record the first damage timestamp of each enemy.
+    w._firstHit = new Map();
+    w._ttk = [];
+    const originalHit = w.hit.bind(w);
+    w.hit = (e, ...rest) => {
+      if (!e.dead && !w._firstHit.has(e.id)) w._firstHit.set(e.id, w.time);
+      const wasAlive = !e.dead;
+      const r = originalHit(e, ...rest);
+      if (wasAlive && e.dead) {
+        const t = w._firstHit.get(e.id);
+        if (t !== undefined) w._ttk.push(w.time - t);
+        w._firstHit.delete(e.id);
+      }
+      return r;
+    };
+  },
+  { god, ids: grantIds },
+);
 const box = await page.locator("canvas").boundingBox();
 // The bot cannot platform, so it relocates to the nearest fight instead of walking the whole shaft.
 const reposition = async () => {
