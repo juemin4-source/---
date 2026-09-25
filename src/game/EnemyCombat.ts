@@ -87,16 +87,18 @@ export class EnemyCombat {
   nextUnit = 1;
   bombs: { x: number; y: number; vx: number; vy: number; life: number; owner: Carrier }[] = [];
   warnings: { x: number; y: number; radius: number; life: number }[] = [];
+  /** Enemy-side combo counters: proof that multi-organ chains actually fire. */
+  chains = { wallCharges: 0, dischargeHeavies: 0, heavyAreas: 0, conducts: 0 };
   constructor(public w: SliceWorld) {}
   kit(e: Carrier) {
     let k = this.kits.get(e);
     if (!k) {
       k = {
         droneStock: 8,
-        shield: e.organ === "shieldBurst" ? 35 : 0,
+        shield: 35 * e.count("shieldBurst"),
         heat: 0,
         hotCycle: false,
-        energy: e.organ === "discharge" ? 2 : 0,
+        energy: Math.min(3, 2 * e.count("discharge")),
         shots: 0,
         combo: 0,
         rhythm: 0,
@@ -111,37 +113,37 @@ export class EnemyCombat {
         slamY: 0,
       };
       this.kits.set(e, k);
-      if (e.organ === "glass") {
-        e.hp *= 0.7;
-        e.maxHp *= 0.7;
+      if (e.count("glass")) {
+        e.hp *= 0.7 ** e.count("glass");
+        e.maxHp *= 0.7 ** e.count("glass");
       }
-      if (e.organ === "leech") {
-        e.hp += 10;
-        e.maxHp += 10;
+      if (e.count("leech")) {
+        e.hp += 10 * e.count("leech");
+        e.maxHp += 10 * e.count("leech");
       }
     }
     return k;
   }
   speed(e: Carrier) {
-    return e.organ === "speed" ? 1.25 : e.organ === "glass" ? 1.4 : 1;
+    return 1 + 0.25 * e.count("speed") + 0.4 * e.count("glass");
   }
   power(e: Carrier) {
     const k = this.kit(e);
     return (
       1 +
-      (e.organ === "hot" && k.heat >= 60 ? 0.35 : 0) +
-      (e.organ === "rage" ? 0.8 * (1 - e.hp / e.maxHp) : 0) +
-      (e.organ === "shieldBurst" && k.shield > 0 ? 0.5 : 0) +
-      (e.organ === "airPower" && !e.grounded ? 0.3 : 0)
+      (k.heat >= 60 ? 0.35 * e.count("hot") : 0) +
+      0.8 * e.count("rage") * (1 - e.hp / e.maxHp) +
+      (k.shield > 0 ? 0.5 * e.count("shieldBurst") : 0) +
+      (!e.grounded ? 0.3 * e.count("airPower") : 0)
     );
   }
   radius(e: Carrier, r: number) {
-    return r * (1 + (e.organ === "fullRange" ? 0.3 : 0) + (e.organ === "airPower" && !e.grounded ? 0.2 : 0));
+    return r * (1 + 0.3 * e.count("fullRange") + (!e.grounded ? 0.2 * e.count("airPower") : 0));
   }
   heal(e: Carrier, amount: number) {
     const over = Math.max(0, e.hp + amount - e.maxHp);
     e.hp = Math.min(e.maxHp, e.hp + amount);
-    if (e.organ === "overflow") this.kit(e).shield += over;
+    if (e.count("overflow")) this.kit(e).shield += over * e.count("overflow");
   }
   defend(e: Carrier, amount: number) {
     const k = this.kit(e);
@@ -168,8 +170,8 @@ export class EnemyCombat {
     const marked = st.mark > 0,
       wasFrozen = st.frozen > 0;
     let dealt = amount * e.damageFactor * this.power(e) * (st.vulnerable > 0 ? 1.2 : 1);
-    if (!indirect && e.organ === "multi")
-      dealt *= 1 + 0.15 * w.armory.units.filter((u) => distance(u, target) < 160).length;
+    if (!indirect && e.count("multi"))
+      dealt *= 1 + 0.15 * e.count("multi") * w.armory.units.filter((u) => distance(u, target) < 160).length;
     const before = unit ? unit.hp : w.player.hp + w.shield;
     if (unit) {
       unit.hp -= dealt;
@@ -177,31 +179,36 @@ export class EnemyCombat {
     } else w.hurtPlayer(dealt, e.x);
     if ((unit ? unit.hp : w.player.hp + w.shield) >= before) return false; // A perfect block/dodge must not receive status effects.
     if (!indirect) {
-      if (e.organ === "mark" && ++st.hits >= 3) {
+      if (e.count("mark") && ++st.hits >= Math.max(1, Math.ceil(3 / (1 + 0.35 * (e.count("mark") - 1))))) {
         st.hits = 0;
-        st.mark = 8;
+        st.mark = 8 + 2 * (e.count("mark") - 1);
       }
-      if (e.organ === "freeze" && st.immune <= 0 && ++st.chill >= 3) {
+      if (e.count("freeze") && st.immune <= 0 && (st.chill += e.count("freeze")) >= 3) {
         st.chill = 0;
         st.frozen = 0.5;
         st.immune = 3;
         if (!unit) w.say("冻结！短暂失去移动 · 解冻后 3 秒免疫再次冻结");
       }
-      if (heavy && e.organ === "stunRegen") {
+      if (heavy && e.count("stunRegen")) {
         st.frozen = 0.2;
         k.burstAt = 0;
-        e.cooldown = Math.max(0, e.cooldown - 0.5);
+        e.cooldown = Math.max(0, e.cooldown - 0.5 * e.count("stunRegen"));
       }
-      if (heavy && e.organ === "vulnerable") st.vulnerable = 4;
-      if (heavy && e.organ === "vent" && st.mark > 0) {
+      if (heavy && e.count("vulnerable")) st.vulnerable = 4;
+      if (heavy && e.count("vent") && st.mark > 0) {
         st.mark = 0;
-        k.heat = Math.max(0, k.heat - 25);
+        k.heat = Math.max(0, k.heat - 25 * e.count("vent"));
       }
       if (!unit) {
-        const push = (e.organ === "knock" ? 650 : 0) + (e.organ === "stunKnock" && wasFrozen ? 900 : 0);
+        // A ram charge is itself a shove, so ram + battery really pins the target on walls.
+        const push =
+          650 * e.count("knock") +
+          (e.charge > 0 ? 700 * e.count("ram") : 0) +
+          (wasFrozen ? 900 * e.count("stunKnock") : 0);
         w.player.externalX += Math.sign(w.player.x - e.x) * push;
         if (
-          e.organ === "battery" &&
+          e.count("battery") &&
+          push > 0 &&
           (w.player.x < 65 ||
             w.player.x > w.width - 65 ||
             w.platforms.some(
@@ -210,22 +217,26 @@ export class EnemyCombat {
                 Math.abs(r.x - w.player.x) < r.w / 2 + 50 &&
                 Math.abs(r.y - w.player.y) < r.h / 2 + 24,
             ))
-        )
-          k.energy = Math.min(3, k.energy + 1);
+        ) {
+          k.energy = Math.min(3, k.energy + e.count("battery"));
+          this.chains.wallCharges++;
+        }
       }
-      if (e.organ === "conduit" && marked)
+      if (e.count("conduit") && marked)
         for (const u of w.armory.units)
-          if (u !== unit && this.unitStatuses.get(u.id)?.mark && distance(u, target) < 320)
-            this.damage(e, amount * 0.6, false, u, true);
-      if (heavy && e.organ === "shatter" && wasFrozen) {
+          if (u !== unit && this.unitStatuses.get(u.id)?.mark && distance(u, target) < 320) {
+            this.chains.conducts++;
+            this.damage(e, amount * (0.6 + 0.3 * (e.count("conduit") - 1)), false, u, true);
+          }
+      if (heavy && e.count("shatter") && wasFrozen) {
         st.frozen = 0;
-        this.blast(e, target.x, target.y, 12, 150, true);
+        this.blast(e, target.x, target.y, 12 * e.count("shatter"), 150, true);
       }
     }
     if (unit && unit.hp <= 0) {
-      this.heal(e, e.organ === "leech" ? 25 : 5);
-      if (e.organ === "airJump" && !e.grounded) k.airJump = 1;
-      if (e.organ === "spread" && marked) {
+      this.heal(e, 5 + 20 * e.count("leech"));
+      if (e.count("airJump") && !e.grounded) k.airJump = e.count("airJump");
+      if (e.count("spread") && marked) {
         if (distance(w.player, unit) < 280) this.playerStatus.mark = 8;
         for (const u of w.armory.units)
           if (u !== unit && distance(u, unit) < 280) {
@@ -274,23 +285,30 @@ export class EnemyCombat {
       k.combo = (k.combo + 1) % 3;
       heavy = e.weapon === "hammer" && k.combo === 0;
       k.rhythm = e.weapon === "dagger" ? Math.min(5, k.rhythm + 1) : 0;
-      if (e.organ === "ram") {
-        e.charge = 0.4;
+      // Ram opens from range; up close the same body still swings its weapon (and its heavy).
+      const ram = e.count("ram") > 0 && (e.ramNext || distance(e, this.w.player) > 110);
+      e.ramNext = false;
+      if (ram) {
+        e.charge = 0.4 + 0.08 * (e.count("ram") - 1);
         return;
       }
-      if (e.organ === "slam" && !e.grounded) {
+      if (e.count("slam") && !e.grounded) {
         k.slam = 1;
         k.slamY = e.y;
         return;
       }
       let amount = e.weapon === "dagger" ? 12 * (1 + 0.2 * k.rhythm) : heavy ? 27 : 18;
-      if (heavy && k.energy > 0) {
+      if (heavy && k.energy > 0 && e.count("discharge")) {
         k.energy--;
-        amount += 10;
-        this.blast(e, e.x, e.y, 9, 155);
+        amount += 10 * e.count("discharge");
+        this.chains.dischargeHeavies++;
+        this.blast(e, e.x, e.y, 9 * e.count("discharge"), 155);
       }
       this.blast(e, e.x + e.chargeDirection * 40, e.y, amount, heavy ? 145 : 95, false, heavy);
-      if (heavy && e.organ === "heavyArea") this.blast(e, e.x, e.y, 10, 200, true);
+      if (heavy && e.count("heavyArea")) {
+        this.chains.heavyAreas++;
+        this.blast(e, e.x, e.y, 10 * e.count("heavyArea"), 165 + 35 * e.count("heavyArea"), true);
+      }
     } else if (e.weapon === "sniper") {
       this.shoot(e, 25, true, true);
       k.heat = Math.min(100, k.heat + 25);
@@ -320,22 +338,22 @@ export class EnemyCombat {
     k.heat = Math.max(0, k.heat - (e.windup > 0 || k.burst > 0 ? 2 : 24) * dt);
     if (k.hotCycle && k.heat <= 35) {
       k.hotCycle = false;
-      if (e.organ === "coolShield") k.shield += 25;
+      k.shield += 25 * e.count("coolShield");
     }
-    k.shield = Math.max(0, k.shield - (e.organ === "shieldBurst" ? 12 : 1) * dt);
+    k.shield = Math.max(0, k.shield - (1 + 12 * e.count("shieldBurst")) * dt);
     if (e.stun > 0 || e.frozen > 0) {
       k.burst = 0;
       k.blocking = false;
       return;
     }
     if (
-      e.organ === "perfect" &&
+      e.count("perfect") > 0 &&
       k.dodge <= 0 &&
       w.projectiles.some((b) => b.team === "player" && distance(b, e) < 100)
     ) {
       k.dodge = 5;
       k.invuln = 0.2;
-      k.energy = Math.min(3, k.energy + 1);
+      k.energy = Math.min(3, k.energy + e.count("perfect"));
       e.impulseX = Math.sign(e.x - w.player.x) * 550;
       w.emit("dash", e.x, e.y, 0xe7bd7b);
     }

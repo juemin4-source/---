@@ -9,6 +9,7 @@ import type { WeaponId, SecondaryId } from "./config";
 import { Ascent } from "./Ascent";
 import { Armory } from "./Armory";
 import { Juice, feel } from "./Juice";
+import { OrganLoadout } from "./OrganLoadout";
 
 const hex = (color: string) => parseInt(color.slice(1), 16);
 
@@ -35,14 +36,28 @@ export class Carrier extends Enemy {
   maxPoise = 0;
   staggerLock = 0;
   staggered = 0;
+  ramNext = false;
+  /** Multi-organ build. `organ` is a compat view: reading gives the primary, writing resets to one organ. */
+  organs = new OrganLoadout();
+  get organ(): OrganId {
+    return this.organs.primary ?? "speed";
+  }
+  set organ(id: OrganId) {
+    this.organs.clear();
+    this.organs.add(id);
+  }
+  count(id: OrganId) {
+    return this.organs.count(id);
+  }
   constructor(
     kind: Enemy["kind"],
     x: number,
     y: number,
-    public organ: OrganId,
+    organ: OrganId | OrganId[] | Partial<Record<OrganId, number>>,
     risk: number,
   ) {
     super(kind, x, y);
+    this.organs = typeof organ === "string" ? new OrganLoadout([organ]) : new OrganLoadout(organ);
     this.weapon = kind === "crawler" ? "dagger" : kind === "floater" ? "handgun" : "hammer";
     // Elite bodies are twice as tall: spawning at the ordinary enemy centre put them inside the floor.
     this.y = Math.min(y, 610 - this.h / 2);
@@ -703,17 +718,21 @@ export class SliceWorld extends World {
       // Kills refund the dash: the loop is dash in → kill → dash out, not walk-and-shoot.
       this.player.dashCooldown = Math.min(this.player.dashCooldown, 0.12);
       this.cargo += e.kind === "elite" ? 180 : 10 + this.zone.risk * 5;
-      const matching = this.drops.find((d) => d.organ === e.organ && Math.abs(d.x - e.x) < 110);
-      if (matching) {
-        matching.growth = (matching.growth ?? matching.stacks ?? 1) + 1;
-        matching.stacks = (matching.stacks ?? 1) + 1;
-      } else
-        this.drops.push({
-          id: this.nextDrop++,
-          x: clamp(e.x, 45, this.width - 45),
-          y: this.ascent ? this.ascent.ground(e.x, e.y) - 24 : 585,
-          organ: e.organ,
-        });
+      // Every organ the body actually carried drops, with its stacks: the loot is the real build.
+      for (const [i, [organ, stacks]] of e.organs.entries().entries()) {
+        const matching = this.drops.find((d) => d.organ === organ && Math.abs(d.x - e.x) < 110);
+        if (matching) {
+          matching.growth = (matching.growth ?? matching.stacks ?? 1) + stacks;
+          matching.stacks = (matching.stacks ?? 1) + stacks;
+        } else
+          this.drops.push({
+            id: this.nextDrop++,
+            x: clamp(e.x + (i - (e.organs.uniqueCount - 1) / 2) * 30, 45, this.width - 45),
+            y: this.ascent ? this.ascent.ground(e.x, e.y) - 24 : 585,
+            organ,
+            stacks: stacks > 1 ? stacks : undefined,
+          });
+      }
       if (this.drops.length > 84) this.drops.shift();
       if (this.has("leech")) this.recover(5 * this.count("leech"));
       if (!this.player.grounded && this.count("airJump"))
@@ -849,7 +868,7 @@ export class SliceWorld extends World {
           d <
             (ranged
               ? 650
-              : e.organ === "ram"
+              : e.count("ram")
                 ? 200
                 : this.hostile.radius(e, e.weapon === "hammer" ? 135 : 110)) &&
           (ranged || Math.abs(p.y - e.y) < 65)
@@ -866,7 +885,9 @@ export class SliceWorld extends World {
                     : 1.1) / this.hostile.speed(e);
           e.windup =
             (e.weapon === "sniper" ? 1.05 : e.weapon === "hammer" ? 0.5 : 0.35) / this.hostile.speed(e);
-          if (e.organ === "slam" && e.grounded) e.vy = -520;
+          if (e.count("slam") && e.grounded) e.vy = -520 - 60 * (e.count("slam") - 1);
+          // Ram bodies commit at wind-up: open from range, and every third attack even up close.
+          e.ramNext = e.count("ram") > 0 && (d > 110 || e.attack % 3 === 2);
           e.chargeDirection = dir;
           e.aimX = p.x;
           e.aimY = p.y;
@@ -1011,7 +1032,7 @@ export class SliceWorld extends World {
             this.hostile.damage(hostileShot.owner, b.damage, hostileShot.heavy);
             this.projectileHit = false;
             hostileShot.hitPlayer = true;
-            if (hostileShot.powered || (hostileShot.heavy && hostileShot.owner.organ === "heavyArea"))
+            if (hostileShot.powered || (hostileShot.heavy && hostileShot.owner.count("heavyArea")))
               this.hostile.blast(hostileShot.owner, this.player.x, this.player.y, 9, 145, true);
           } else this.hurtPlayer(b.damage, b.x - Math.sign(b.vx) * 10);
         }

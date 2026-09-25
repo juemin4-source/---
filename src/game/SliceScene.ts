@@ -497,7 +497,17 @@ export class SliceScene extends Phaser.Scene {
         g.fillCircle(e.x + 24, e.y - 17, 7);
         g.lineStyle(2, c, 0.7);
         g.lineBetween(e.x + 15, e.y - 8, e.x + 24, e.y - 17);
-        this.art.label(`carrier-${e.id}`, e.x - 49, e.y - e.h / 2 - 28, o.name, o.color, 13);
+        this.art.label(
+          `carrier-${e.id}`,
+          e.x - 49,
+          e.y - e.h / 2 - 28,
+          e.organs
+            .entries()
+            .map(([id, n]) => organs[id].name + (n > 1 ? `×${n}` : ""))
+            .join(" "),
+          o.color,
+          13,
+        );
         const ek = w.hostile.kit(e);
         this.art.label(
           `weapon-${e.id}`,
@@ -523,7 +533,10 @@ export class SliceScene extends Phaser.Scene {
             `ability-${e.id}`,
             e.x - 80,
             e.y + e.h / 2 + 18,
-            enemyModuleHints[e.organ],
+            e.organs
+              .ids()
+              .map((id) => enemyModuleHints[id])
+              .join(" · "),
             "#c7b5a3",
             10,
           );

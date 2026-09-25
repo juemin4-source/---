@@ -1,4 +1,6 @@
 import Phaser from "phaser";
+import { SumpBackdrop } from "./SumpBackdrop";
+import { HERO_ART_POSES, HERO_ART_SCALE, heroHandOffset } from "./HeroArtSpec";
 import type { World } from "./World";
 import type { Enemy } from "./Enemy";
 import type { Rect } from "./PhysicsHelpers";
@@ -6,16 +8,18 @@ import "../styles/art-sample.css";
 
 /** Presentation only. No collision, AI, input or combat state is changed here. */
 export class ArtDirection {
+  private sump: SumpBackdrop;
   private hero?: Phaser.GameObjects.Image;
   private ghosts: Phaser.GameObjects.Image[] = [];
   private weapon: Phaser.GameObjects.Graphics;
   private disposed = false;
   private source: HTMLImageElement | null = null;
-  private key = "eclipse-hero-actions-v1";
+  private key = "eclipse-hero-actions-v1-calibrated";
   get heroReady() {
     return !!this.hero;
   }
   constructor(private scene: Phaser.Scene) {
+    this.sump = new SumpBackdrop(scene);
     this.weapon = scene.add.graphics().setDepth(2);
     const setup = () => {
       if (this.disposed) return;
@@ -31,9 +35,9 @@ export class ArtDirection {
       image.onload = () => {
         if (this.disposed) return;
         const texture = scene.textures.addImage(this.key, image)!;
-        const cw = Math.floor(image.width / 4),
-          ch = Math.floor(image.height / 2);
-        for (let i = 0; i < 8; i++) texture.add(`pose-${i}`, 0, (i % 4) * cw, Math.floor(i / 4) * ch, cw, ch);
+        HERO_ART_POSES.forEach(({ rect }, i) => {
+          texture.add(`pose-${i}`, 0, rect[0], rect[1], rect[2], rect[3]);
+        });
         setup();
       };
       image.onerror = () => console.warn("Hero art unavailable; keeping the vector fallback.");
@@ -46,6 +50,7 @@ export class ArtDirection {
   }
 
   background(g: Phaser.GameObjects.Graphics, w: World) {
+    if (this.sump.draw(g, w)) return;
     const cam = this.scene.cameras.main,
       sx = cam.scrollX,
       sy = cam.scrollY;
@@ -345,22 +350,15 @@ export class ArtDirection {
             : moving
               ? 1 + (Math.floor(w.time * 12) % 2)
               : 0;
-    const anchors = [
-      [0.53, 0.94],
-      [0.58, 0.93],
-      [0.61, 0.89],
-      [0.64, 0.65],
-      [0.55, 0.94],
-      [0.57, 0.9],
-      [0.63, 0.94],
-      [0.59, 0.91],
-    ];
+    const anchors = HERO_ART_POSES.map(({ rect, pivot }) => [pivot[0] / rect[2], pivot[1] / rect[3]]);
     const direction = moving ? p.moveFacing : p.facing;
-    h.setFrame(`pose-${pose}`)
-      .setOrigin(direction < 0 ? 1 - anchors[pose][0] : anchors[pose][0], anchors[pose][1])
-      .setPosition(p.x, p.y + p.h / 2);
-    const scale = 78 / h.frame.height;
-    h.setScale(scale * (1 + p.squash * 0.35), scale * (1 - p.squash * 0.4)).setFlipX(direction < 0);
+    const anchor = anchors[pose];
+    h.setTexture(this.key, `pose-${pose}`)
+      .setOrigin(direction < 0 ? 1 - anchor[0] : anchor[0], anchor[1])
+      .setPosition(p.x, p.y + p.h / 2)
+      .setScale(HERO_ART_SCALE * (1 + p.squash * 0.35), HERO_ART_SCALE * (1 - p.squash * 0.4))
+      .setRotation(0)
+      .setFlipX(direction < 0);
     h.setAlpha(p.invulnerable > 0 && Math.floor(w.time * 22) % 2 === 0 ? 0.55 : 1);
     this.ghosts.forEach((ghost, i) => {
       const t = p.trails[i];
@@ -369,18 +367,19 @@ export class ArtDirection {
         ghost
           .setOrigin(p.moveFacing < 0 ? 1 - anchors[5][0] : anchors[5][0], anchors[5][1])
           .setPosition(t.x, t.y + p.h / 2)
-          .setScale(scale)
+          .setScale(HERO_ART_SCALE)
           .setFlipX(p.moveFacing < 0)
           .setTint(0xeaa4ba)
           .setAlpha((t.life / 0.18) * 0.28);
     });
     // Art-only aim rig: separate gun follows aim without flipping the locomotion pose.
     g.save();
-    g.translateCanvas(p.x, p.y);
+    const hand = heroHandOffset(pose, direction, p.squash);
+    g.translateCanvas(p.x + hand.x - Math.cos(p.aim) * 10, p.y + p.h / 2 + hand.y - Math.sin(p.aim) * 10);
     g.rotateCanvas(p.aim);
     const primary = extra.armory?.primary ?? "handgun";
     g.lineStyle(4, 0xeee1df);
-    g.lineBetween(1, 3, 14, 0);
+    g.lineBetween(10, 3, 14, 0);
     g.fillStyle(0x171a24);
     g.fillRoundedRect(10, -5, primary === "sniper" ? 35 : primary === "rifle" ? 28 : 20, 9, 2);
     g.fillStyle(0x808899);

@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="zh-CN">
+  <meta charset="UTF-8" /><meta name="viewport" content="width=device-width,initial-scale=1" /><title>
+    永蚀 · 角色校准 A01
+  </title>
+  <style>
+    body {
+      margin: 0;
+      background: #141820;
+      color: #ece9e7;
+      font: 15px system-ui;
+    }
+    main {
+      max-width: 1120px;
+      margin: 40px auto;
+      padding: 24px;
+    }
+    h1 {
+      font-size: 28px;
+    }
+    p {
+      color: #a7adb6;
+      line-height: 1.8;
+    }
+    button,
+    label {
+      margin-right: 20px;
+    }
+    button {
+      background: #a51d46;
+      color: white;
+      border: 0;
+      padding: 10px 18px;
+      border-radius: 6px;
+    }
+    canvas {
+      width: 100%;
+      border: 1px solid #626873;
+      margin: 24px 0;
+    }
+    #palette {
+      display: flex;
+      gap: 12px;
+    }
+    #palette span {
+      padding: 18px 12px;
+      border-bottom: 8px solid var(--color);
+    }
+    a {
+      color: #eaa4ba;
+    }
+  </style>
+  <main>
+    <p>EVER ECLIPSE / ART LAB / A01</p>
+    <h1>角色尺度与动作锚点</h1>
+    <p>
+      游戏共用的原图、裁切范围和锚点。上排为游戏尺寸，下排放大 3 倍。青框表示现有 25×48
+      碰撞体，红点为物理中心，紫点为逐姿态握点，黄线为脚底基准。空中姿态的基准用于定位，不代表正在接触地面。
+    </p>
+    <button id="flip">朝向：右 →</button><label><input id="light" type="checkbox" />明背景</label
+    ><label><input id="guides" type="checkbox" checked />定位辅助</label
+    ><canvas id="sheet" width="1120" height="620"></canvas>
+    <h2>动态对照</h2>
+    <label><input id="run-mode" type="checkbox" />已停用的 v3（仅供问题对照）</label>
+    <p>固定脚底定位轴，检查动作切换及左右持握。可暂停后逐帧检查。此处是姿态预览，不模拟移动物理。</p>
+    <button id="play">播放八姿态</button><button id="step">下一姿态</button>
+    <label>瞄准角度 <input id="aim" type="range" min="-180" max="180" value="0" /></label>
+    <canvas id="motion" width="1120" height="300"></canvas>
+    <div id="palette"></div>
+    <p>
+      当前左右使用镜像：服装不对称尚未独立绘制。八帧是校准原料，不是完整动画；跑步时脚步交替的连续性在 A02
+      处理。
+    </p>
+    <a href="/">返回游戏</a>
+  </main>
+  <script type="module" src="/src/art-calibration.ts"></script>
+</html>
