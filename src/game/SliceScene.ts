@@ -1,6 +1,8 @@
 import Phaser from "phaser";
 import { enemyModuleHints } from "./EnemyCombat";
 import { ARCHETYPES, matchup } from "./expedition/Counters";
+import { expeditionMapHTML } from "./expedition/ExpeditionMapView";
+import { ecologyOverlayHTML } from "./expedition/EcologyOverlay";
 import { districts } from "./AscentMap";
 import { guideHTML, nextBuildTarget, fieldBuilds } from "./BuildGuide";
 import { Renderer } from "../engine/Renderer";
@@ -35,6 +37,8 @@ export class SliceScene extends Phaser.Scene {
   started = false;
   paused = false;
   mapOpen = false;
+  /** F3 ecology debug overlay (0.10 expeditions only). */
+  ecoOpen = false;
   helpOpen = false;
   guideOpen = false;
   benchOpen = false;
@@ -375,6 +379,16 @@ export class SliceScene extends Phaser.Scene {
       this.guideOpen = false;
       this.benchOpen = !this.benchOpen;
       this.mapOpen = false;
+      this.helpOpen = false;
+      this.paused = false;
+      this.resetInput();
+    }
+    // F3 toggles the ecology debug overlay. It is a developer tool, so it is allowed to show
+    // districts the player has not visited.
+    if (this.pressed("F3") && this.started && this.world.expedition) {
+      this.ecoOpen = !this.ecoOpen;
+      this.mapOpen = false;
+      this.benchOpen = false;
       this.helpOpen = false;
       this.paused = false;
       this.resetInput();
@@ -827,10 +841,15 @@ export class SliceScene extends Phaser.Scene {
         .toString()
         .padStart(2, "0")}`;
     const a = w.armory;
+    const ex = w.expedition;
     const target = w.ascent ? nextBuildTarget(w, w.ascent.trackedBuild) : null;
-    const guide = w.ascent
-      ? `<div class="build-tracker">${w.ascent.trackedBuild ? `<b>${fieldBuilds[w.ascent.trackedBuild].name}</b><br>${target ? `${target.y < p.y - 80 ? "↑" : target.y > p.y + 80 ? "↓" : target.x < p.x ? "←" : "→"} ${organs[target.organ].name} · ${target.label}` : "核心组合已齐 / 当前无可获取来源"}` : "R 推荐 build · 选择猎取目标"}</div>`
-      : "";
+    const guide = ex
+      ? `<div class="build-tracker"><b>${ex.district} 区</b> · 威胁 ${ex.eco.threatLabel()}<br>货物 ${ex.cargo.value} 价值 / ${ex.cargo.weight} 重量 / ${ex.cargo.size}格${
+          ex.heavy ? ` <span class="warn">重型·移动变慢</span>` : ""
+        }<br>${ex.power ? "货运站已供电" : "货运站未供电"} · 已搜 ${ex.metrics.searchesCompleted}/${ex.piles.length} · F3 生态</div>`
+      : w.ascent
+        ? `<div class="build-tracker">${w.ascent.trackedBuild ? `<b>${fieldBuilds[w.ascent.trackedBuild].name}</b><br>${target ? `${target.y < p.y - 80 ? "↑" : target.y > p.y + 80 ? "↓" : target.x < p.x ? "←" : "→"} ${organs[target.organ].name} · ${target.label}` : "核心组合已齐 / 当前无可获取来源"}` : "R 推荐 build · 选择猎取目标"}</div>`
+        : "";
     const weaponStatus =
       a.primary === "sniper"
         ? `蓄力 ${Math.round((a.charge / 1.3) * 100)}% · 松开释放`
@@ -845,7 +864,7 @@ export class SliceScene extends Phaser.Scene {
             : a.primary === "hammer"
               ? `连段 ${a.combo + 1}/3 · 第三段重击`
               : `${"▰".repeat(w.ammo)}${"▱".repeat(5 - w.ammo)} 第五发重击`;
-    this.hud.innerHTML = `<header class="slice-top"><div><b>永蚀<span>EVER ECLIPSE</span></b><small>${w.training ? (w.unlimited ? "无限槽训练 / 0.9" : "六槽训练 / 0.9") : w.unlimited ? "无限收集 / 0.9" : "六槽探索 / 0.9"}</small></div><div class="slice-cargo">${w.training ? "累计击杀" : "携带样本"} <strong>${w.training ? w.stats.kills : w.cargo}</strong><small>${w.training ? "B 训练台 · 1–9 武器" : "死亡全部丢失"}</small></div><div class="slice-clock">${t}<small>${this.synth.muted ? "声音关闭" : "M 静音"} · Esc 暂停</small></div></header>
+    this.hud.innerHTML = `<header class="slice-top"><div><b>永蚀<span>EVER ECLIPSE</span></b><small>${w.training ? (w.unlimited ? "无限槽训练 / 0.10" : "六槽训练 / 0.10") : w.unlimited ? "活生态 · 无限槽 / 0.10" : "活生态 · 六槽 / 0.10"}</small></div><div class="slice-cargo">${w.training ? "累计击杀" : "携带价值"} <strong>${w.training ? w.stats.kills : (ex?.cargo.value ?? w.cargo)}</strong><small>${w.training ? "B 训练台 · 1–9 武器" : ex ? `${ex.cargo.size}/${ex.cargo.capacity} 格 · 死亡全部丢失` : "死亡全部丢失"}</small></div><div class="slice-clock">${t}<small>${this.synth.muted ? "声音关闭" : "M 静音"} · Esc 暂停</small></div></header>
       <div class="slice-zone"><small>${w.ascent ? "沉井 → 地表 / 上行探索" : w.zone.subtitle}</small><h2>${w.training ? `第 ${w.wave} 波 · 持续增压` : (w.ascent?.title ?? w.zone.name)}</h2><span>${w.training ? `敌人生命 ×${number(w.enemyHealthScale())} · 场上 ${w.enemies.filter((e) => !e.dead).length}` : w.ascent ? `已上行 ${Math.max(0, Math.round((3096 - p.y) / 40))}m · Tab 剖面地图` : w.zone.risk ? "危险 " + "◆".repeat(w.zone.risk) : "安全区"}</span><p class="combat-readout">5 秒 DPS <b>${number(w.dps)}</b><br>撞墙 ${w.metrics.wallCharges} · 传导 ${w.metrics.transmissions}<br>冻结 ${w.metrics.freezes} · 碎冰 ${w.metrics.shatters}${w.unlimited ? `<br>异变等级 ${w.ascent?.pressure ?? 0} · 增援 ${w.ascent?.reinforcements ?? 0}<br>新生敌人生命 ×${w.ascent?.healthScale.toFixed(1)} / 伤害 ×${w.ascent?.damageScale.toFixed(1)}` : ""}</p></div>
       ${guide}<div class="slice-vitals"><div>生命 <b>${Math.ceil(p.hp)} / ${p.maxHp} ${w.shield > 0 ? `＋盾 ${number(w.shield)}` : ""}</b></div><div class="slice-health"><i style="width:${(p.hp / p.maxHp) * 100}%"></i></div><div>充能 <b>${w.energy} / ${w.energyMax}</b></div><small>体质 ${w.vitalityLevel} · 下一级 ${6 - (w.collectedLayers % 6)} 层 · 回生膜 +${10 * w.count("leech")} 生命</small><small>体力 ${Math.round(w.stamina)} / 100　热量 ${Math.round(w.heat)} / 100</small><div class="resource-meter"><i style="width:${w.heat}%;background:${w.overheated ? "#ff687d" : "#d5a86b"}"></i></div><small>${weapons[a.primary].name}</small><small>${weaponStatus}</small><small>${secondaries[a.secondary].name} · ${w.grenadeCooldown > 0 ? w.grenadeCooldown.toFixed(1) + "s" : "就绪"}</small><small>H 治疗 ×${w.medkits} ${a.secondary === "drone" ? ` · 无人机储备 ${a.droneStock}` : ""}</small></div>
       <div class="slice-message">${w.messageTime > 0 ? escape(w.message) : ""}</div><div class="slice-prompt">${n?.label ?? ""}</div>
@@ -855,6 +874,16 @@ export class SliceScene extends Phaser.Scene {
     return `<section class="slice-panel ${wide ? "wide" : ""}">${body}</section>`;
   }
   mapHTML() {
+    if (this.world.expedition)
+      return this.panel(
+        expeditionMapHTML(
+          this.world.expedition,
+          this.world.player.x,
+          this.world.player.y,
+          this.world.expedition.knownDistricts,
+        ),
+        true,
+      );
     if (this.world.ascent) return this.panel(this.world.ascent.mapHTML(), true);
     const positions: Record<string, [number, number]> = {
       hub: [0, 1],
@@ -891,13 +920,15 @@ export class SliceScene extends Phaser.Scene {
             ? "guide"
             : this.benchOpen
               ? "bench"
-              : this.mapOpen
-                ? "map"
-                : this.helpOpen
-                  ? "help"
-                  : this.paused
-                    ? "pause"
-                    : "";
+              : this.ecoOpen && w.expedition
+                ? "eco"
+                : this.mapOpen
+                  ? "map"
+                  : this.helpOpen
+                    ? "help"
+                    : this.paused
+                      ? "pause"
+                      : "";
     // Visibility must update even when a handler has invalidated the cached signature to "".
     this.overlay.hidden = !state;
     if (state === this.overlayKey) return;
@@ -944,6 +975,7 @@ export class SliceScene extends Phaser.Scene {
         true,
       );
     } else if (state === "guide") this.overlay.innerHTML = this.panel(guideHTML(w), true);
+    else if (state === "eco" && w.expedition) this.overlay.innerHTML = ecologyOverlayHTML(w.expedition);
     else if (state === "bench") this.overlay.innerHTML = this.panel(trainingPanel(w, this.benchStacks), true);
     else if (state === "map") this.overlay.innerHTML = this.mapHTML();
     else if (state === "help")

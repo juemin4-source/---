@@ -800,6 +800,84 @@
 .ascent-map-layout p {
   font-size: 12px;
 }
+.warn {
+  color: #ffb4a2;
+}
+.eco-table {
+  border-collapse: collapse;
+  font-size: 11px;
+  margin: 6px 0;
+  width: 100%;
+}
+.eco-table th,
+.eco-table td {
+  border-bottom: 1px solid #2c443c;
+  padding: 2px 6px;
+  text-align: left;
+}
+.eco-table th {
+  color: #9cd8bd;
+}
+.eco-here {
+  background: #1d3a31;
+}
+
+/* F3 ecology debug overlay: intentionally dense, a developer instrument rather than player UI. */
+.eco-overlay {
+  align-items: center;
+  background: rgba(6, 14, 15, 0.96);
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  padding: 16px;
+  position: fixed;
+  z-index: 40;
+}
+.eco-card {
+  background: #0d1a1c;
+  border: 1px solid #35564a;
+  color: #cfe8d8;
+  font-size: 11px;
+  max-height: 94vh;
+  max-width: 1180px;
+  overflow: auto;
+  padding: 14px 18px;
+  width: 100%;
+}
+.eco-card header {
+  align-items: baseline;
+  border-bottom: 1px solid #2c443c;
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 10px;
+  padding-bottom: 6px;
+}
+.eco-card header b {
+  color: #8ef0c0;
+  font-size: 14px;
+}
+.eco-grid {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+}
+.eco-card h4 {
+  color: #9cd8bd;
+  margin: 8px 0 4px;
+}
+.eco-card ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.eco-card li {
+  border-bottom: 1px dotted #24382f;
+  padding: 1px 0;
+}
+.eco-note {
+  color: #7f9b8d;
+  margin-top: 8px;
+}
 
 .build-guide {
   display: grid;

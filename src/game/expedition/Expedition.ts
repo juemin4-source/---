@@ -72,6 +72,8 @@ export class Expedition {
   open = new Set<string>();
   power = false;
   district: DistrictId = "airlock";
+  /** Districts the player has actually entered: the map must not scout the run for free. */
+  knownDistricts = new Set<DistrictId>(["airlock"]);
   rng: SeededRandom;
   time = 0;
   /** Biomass the player has personally fed into the world (their kills become food). */
@@ -231,6 +233,7 @@ export class Expedition {
     const here = districtOf(p.x, p.y);
     if (here && here !== this.district) {
       this.district = here;
+      this.knownDistricts.add(here);
       this.metrics.districtTransitions++;
       this.event("district_enter", here);
       this.w.record("district_enter", here);

@@ -14,6 +14,7 @@ const bindings: Record<string, string> = {
   Tab: "TAB",
   Escape: "ESC",
   KeyM: "M",
+  F3: "F3",
   Digit1: "ONE",
   Digit2: "TWO",
   Digit3: "THREE",
