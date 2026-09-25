@@ -162,9 +162,15 @@ describe("器官猎场 / 玩法闭环", () => {
   });
   it("模块选择界面冻结战斗，不能造成敌人偷袭", () => {
     const w = new SliceWorld();
-    w.pendingDrop = { id: 1, x: 0, y: 0, organ: "ram" };
+    // A real floor drop queues the panel; a stale queue with no floor entry must not freeze the sim.
+    const d = { id: 1, x: w.player.x, y: w.player.y, organ: "ram" as const };
+    w.drops.push(d);
+    w.pendingDrop = d;
     w.step(2);
     expect(w.time).toBe(0);
+    w.pendingDrop = { id: 999, x: 0, y: 0, organ: "ram" };
+    w.step(0.5);
+    expect(w.time).toBeGreaterThan(0);
   });
   it("气闸必须连续按住两秒，移开或松手中断，Boss 不是撤离条件", () => {
     const w = new SliceWorld();

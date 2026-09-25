@@ -28,6 +28,9 @@ describe("0.6 无尽训练 / 叠层与九武器", () => {
     expect(w.energyMax).toBe(13);
     expect(w.slots).toHaveLength(6);
     expect(w.grant("speed", 3)).toBe(false);
+    // A refused grant still queues a resolvable panel: the drop is on the floor, so it can be swapped in.
+    expect(w.pendingDrop?.organ).toBe("speed");
+    expect(w.drops.some((d) => d.organ === "speed")).toBe(true);
     expect(w.equip(1)).toBe(true);
     expect(w.drops.find((d) => d.organ === "battery")?.stacks).toBe(6);
     expect(w.speedFactor()).toBe(1.75);

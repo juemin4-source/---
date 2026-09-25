@@ -295,8 +295,10 @@ export class SliceWorld extends World {
       stacks: clamp(Math.floor(amount), 1, 100),
     };
     this.drops.push(d);
+    // Debug/training grant: queue the panel so a refused grant can still be resolved by hand.
     this.pendingDrop = d;
-    return this.has(id) || this.slots.length < this.slotLimit ? this.equip() : false;
+    const ok = this.has(id) || this.slots.length < this.slotLimit ? this.equip() : false;
+    return ok;
   }
   useBuild(id: string, amount = 1) {
     const build = builds[id];
@@ -490,17 +492,23 @@ export class SliceWorld extends World {
   }
   equip(slot = this.slots.length) {
     const d = this.pendingDrop;
-    if (!d || !this.drops.includes(d)) return false;
+    if (!d) return false;
+    // A drop queued by autoCollect may not be a real floor drop yet (it can still be a duplicate
+    // reward for an already-owned organ): fall back to the live entry with the same id.
+    let target = this.drops.includes(d) ? d : this.drops.find((x) => x.id === d.id);
+    if (!target && this.has(d.organ)) target = d;
+    if (!target) return false;
     const beforeVitality = this.naturalMaxHp,
-      credit = d.growth ?? d.stacks ?? 1;
-    if (this.has(d.organ)) {
+      credit = target.growth ?? target.stacks ?? 1;
+    if (this.has(target.organ)) {
       this.collectedLayers += credit;
-      this.stackCounts[d.organ] = this.count(d.organ) + (d.stacks ?? 1);
-      this.drops.splice(this.drops.indexOf(d), 1);
+      this.stackCounts[target.organ] = this.count(target.organ) + (target.stacks ?? 1);
+      const at = this.drops.indexOf(target);
+      if (at >= 0) this.drops.splice(at, 1);
       this.pendingDrop = null;
       this.syncStats(credit > 0 ? this.naturalMaxHp - beforeVitality : 0);
-      this.say(`${organs[d.organ].name} ×${this.count(d.organ)} · 同类效果叠加`);
-      this.record("stack", `${d.organ} x${this.count(d.organ)}`);
+      this.say(`${organs[target.organ].name} ×${this.count(target.organ)} · 同类效果叠加`);
+      this.record("stack", `${target.organ} x${this.count(target.organ)}`);
       this.emit("phase", this.player.x, this.player.y);
       return true;
     }
@@ -508,17 +516,25 @@ export class SliceWorld extends World {
     this.collectedLayers += credit;
     const oldCount = this.slots[slot] ? this.count(this.slots[slot]) : 0;
     const old = this.slots[slot];
-    this.slots[slot] = d.organ;
-    this.stackCounts[d.organ] = d.stacks ?? 1;
-    this.drops.splice(this.drops.indexOf(d), 1);
+    this.slots[slot] = target.organ;
+    this.stackCounts[target.organ] = target.stacks ?? 1;
+    const at = this.drops.indexOf(target);
+    if (at >= 0) this.drops.splice(at, 1);
     if (old) {
-      this.drops.push({ id: this.nextDrop++, x: d.x + 28, y: d.y, organ: old, stacks: oldCount, growth: 0 });
+      this.drops.push({
+        id: this.nextDrop++,
+        x: target.x + 28,
+        y: target.y,
+        organ: old,
+        stacks: oldCount,
+        growth: 0,
+      });
       delete this.stackCounts[old];
       this.metrics.swaps++;
     }
     this.syncStats(credit > 0 ? this.naturalMaxHp - beforeVitality : 0);
-    this.record(old ? "swap" : "equip", `${old ?? "empty"} → ${d.organ}`);
-    this.say(`已接入 ${organs[d.organ].name}${old ? ` · ${organs[old].name}留在地面` : ""}`);
+    this.record(old ? "swap" : "equip", `${old ?? "empty"} → ${target.organ}`);
+    this.say(`已接入 ${organs[target.organ].name}${old ? ` · ${organs[old].name}留在地面` : ""}`);
     this.pendingDrop = null;
     this.emit("phase", this.player.x, this.player.y);
     return true;
@@ -533,7 +549,8 @@ export class SliceWorld extends World {
       )
         continue;
       this.pendingDrop = d;
-      this.equip();
+      // Never leave a queued drop the player cannot resolve: on any refusal, put it back.
+      if (!this.equip()) this.pendingDrop = null;
     }
   }
   heal() {
@@ -1008,6 +1025,9 @@ export class SliceWorld extends World {
       .slice(-1600);
   }
   override update(dt: number, c: Controls, interactHeld = false) {
+    // A queued drop must always correspond to a resolvable entry on the floor. If the panel would
+    // have nothing to act on, drop it here instead of freezing the simulation forever.
+    if (this.pendingDrop && !this.drops.includes(this.pendingDrop)) this.pendingDrop = null;
     if (this.result || this.pendingDrop) return;
     this.time += dt;
     this.messageTime -= dt;

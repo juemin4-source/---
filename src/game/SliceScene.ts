@@ -309,8 +309,10 @@ export class SliceScene extends Phaser.Scene {
     if (!this.keys) return;
     if (this.pressed("M")) this.synth.muted = !this.synth.muted;
     if (this.pressed("ESC") && this.started && !this.world.result) {
-      if (this.world.pendingDrop) this.world.pendingDrop = null;
-      else if (this.mapOpen || this.helpOpen || this.benchOpen || this.guideOpen) {
+      if (this.world.pendingDrop) {
+        this.world.pendingDrop = null;
+        this.overlayKey = "";
+      } else if (this.mapOpen || this.helpOpen || this.benchOpen || this.guideOpen) {
         this.mapOpen = false;
         this.helpOpen = false;
         this.benchOpen = false;
