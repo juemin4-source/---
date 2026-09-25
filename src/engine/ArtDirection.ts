@@ -1,4 +1,5 @@
 import Phaser from "phaser";
+import { facilityPlatform, facilityFixture, facilityAirlock } from "./FacilityArt";
 import { SumpBackdrop } from "./SumpBackdrop";
 import { HERO_ART_POSES, HERO_ART_SCALE, heroHandOffset } from "./HeroArtSpec";
 import type { World } from "./World";
@@ -156,36 +157,9 @@ export class ArtDirection {
   }
 
   platform(g: Phaser.GameObjects.Graphics, r: Rect) {
-    const x = r.x - r.w / 2,
-      y = r.y - r.h / 2;
     const cam = this.scene.cameras.main;
-    if (y > cam.scrollY + 820 || y + r.h < cam.scrollY - 100) return;
-    g.fillStyle(0x111822);
-    g.fillRect(x, y, r.w, r.h);
-    g.fillStyle(0x3b4148);
-    g.fillRect(x, y + 3, r.w, Math.min(r.h - 3, 13));
-    g.fillStyle(0x878b8c);
-    g.fillRect(x, y, r.w, 3);
-    g.fillStyle(0x242a32);
-    g.fillRect(x, y + Math.min(16, r.h - 3), r.w, 3);
-    const h = Math.min(r.h, 24);
-    g.lineStyle(1, 0x555b62);
-    g.strokeRect(x, y, r.w, h);
-    for (let xx = x + 18; xx < x + r.w - 12; xx += 84) {
-      g.fillStyle(0x121821);
-      g.fillRect(xx, y + 7, 46, Math.min(7, h - 8));
-      g.fillStyle(0xa68c53);
-      g.fillRect(xx + 3, y + 8, 11, 3);
-      g.fillStyle(0x6b7076);
-      g.fillCircle(xx - 7, y + 9, 1.5);
-    }
-    if (r.w > 95 && r.h < 45)
-      for (const xx of [x + 15, x + r.w - 15]) {
-        g.fillStyle(0x202833);
-        g.fillTriangle(xx, y + r.h, xx + (xx < r.x ? 26 : -26), y + r.h, xx, y + r.h + 26);
-        g.lineStyle(1, 0x4c555f);
-        g.lineBetween(xx, y + r.h + 2, xx, y + r.h + 22);
-      }
+    if (r.y - r.h / 2 > cam.scrollY + cam.height / cam.zoom + 80 || r.y + r.h / 2 < cam.scrollY - 80) return;
+    facilityPlatform(g, r);
   }
 
   enemy(g: Phaser.GameObjects.Graphics, e: Enemy, time: number, playerX: number) {
@@ -274,59 +248,11 @@ export class ArtDirection {
   }
 
   fixture(g: Phaser.GameObjects.Graphics, x: number, y: number, kind: string, done: boolean) {
-    const light = done ? 0x526477 : kind === "medical" ? 0x8fcec0 : kind === "lift" ? 0x9bc4e8 : 0xe9b97b;
-    const width = kind === "medical" ? 34 : 42;
-    g.fillStyle(0x10151e);
-    g.fillRoundedRect(x - width / 2 - 3, y - 16, width + 6, 39, 4);
-    g.fillStyle(0x454c58);
-    g.fillRoundedRect(x - width / 2, y - 13, width, 33, 3);
-    g.fillStyle(0x242c39);
-    g.fillRect(x - width / 2 + 5, y - 8, width - 10, 23);
-    g.lineStyle(1, 0x7e858e);
-    g.lineBetween(x - width / 2 + 3, y - 12, x + width / 2 - 3, y - 12);
-    g.fillStyle(light);
-    g.fillRect(x - width / 2 + 2, y - 5, 3, 17);
-    g.fillRect(x + width / 2 - 5, y - 5, 3, 17);
-    if (kind === "medical") {
-      g.fillRect(x - 2, y - 6, 4, 13);
-      g.fillRect(x - 6, y - 2, 12, 4);
-    } else if (kind === "lift") {
-      g.fillTriangle(x - 6, y + 1, x + 6, y + 1, x, y - 7);
-      g.fillRect(x - 1, y, 2, 8);
-    } else {
-      g.fillStyle(done ? 0x151b25 : 0x303845);
-      g.fillRect(x - 13, y - 16 - (done ? 7 : 0), 26, 7);
-      g.fillStyle(light);
-      g.fillRect(x - 4, y - 1, 8, 6);
-    }
-    g.fillStyle(0x0b1119);
-    g.fillRect(x - width / 2 + 3, y + 20, width - 6, 3);
+    facilityFixture(g, x, y, kind, done);
   }
 
   airlock(g: Phaser.GameObjects.Graphics, x: number, y: number) {
-    g.fillStyle(0x0a1018);
-    g.fillRect(x - 10, y - 12, 180, 112);
-    g.fillStyle(0x4e5660);
-    g.fillRect(x, y, 160, 100);
-    g.fillStyle(0x232c37);
-    g.fillRect(x + 9, y + 5, 142, 95);
-    g.fillStyle(0x38434e);
-    g.fillRect(x + 15, y + 12, 61, 88);
-    g.fillRect(x + 84, y + 12, 61, 88);
-    g.lineStyle(2, 0x657480);
-    g.lineBetween(x + 78, y + 8, x + 78, y + 100);
-    g.fillStyle(0x101921);
-    g.fillRect(x + 34, y + 27, 27, 26);
-    g.fillRect(x + 99, y + 27, 27, 26);
-    g.fillStyle(0x80bcaf);
-    g.fillRect(x + 5, y + 4, 150, 3);
-    g.fillStyle(0xbda878);
-    g.fillRect(x - 6, y + 45, 4, 18);
-    g.fillRect(x + 162, y + 45, 4, 18);
-    g.fillStyle(0x14221f);
-    g.fillRect(x + 111, y + 66, 17, 15);
-    g.fillStyle(0xa2d7c2);
-    g.fillTriangle(x + 113, y + 73, x + 124, y + 68, x + 124, y + 78);
+    facilityAirlock(g, x, y);
   }
 
   drawHero(w: World) {

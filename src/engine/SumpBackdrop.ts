@@ -94,13 +94,21 @@ export class SumpBackdrop {
     for (const p of w.platforms) {
       if (p.y < 2400 || p.y > 3100 || p.w < 100 || p.h > 45 || Math.abs(p.y - (sy + viewH / 2)) > viewH)
         continue;
-      g.lineStyle(6, 0x263c4b);
-      const left = p.x - p.w / 2;
-      g.lineBetween(left + 12, p.y, left + 48, p.y + 68);
-      g.lineBetween(left + p.w - 12, p.y, left + p.w - 48, p.y + 68);
-      g.lineStyle(1, 0x52616b);
-      g.lineBetween(left + 12, p.y + 4, left + 48, p.y + 70);
+      const pier = [634, 1429, 1674, 2459].reduce((best, x) =>
+        Math.abs(x - p.x) < Math.abs(best - p.x) ? x : best,
+      );
+      const edge = p.x + (pier > p.x ? p.w / 2 - 12 : -p.w / 2 + 12);
+      const top = p.y + p.h / 2;
+      g.lineStyle(7, 0x1b3040);
+      g.lineBetween(edge, top, pier, top + 78);
+      g.lineStyle(2, 0x4b6471);
+      g.lineBetween(edge, top + 2, pier, top + 80);
+      g.fillStyle(0x101f2d);
+      g.fillRect(pier - 18, top + 66, 36, 20);
+      g.fillStyle(0x677e88);
+      g.fillCircle(pier, top + 76, 3);
     }
+
     // Warm airlock pool has a real source at the existing door, not a full-screen wash.
     g.fillStyle(0xe8b47a, 0.045);
     g.fillEllipse(900, 3080, 520, 250);
@@ -116,13 +124,20 @@ export class SumpBackdrop {
     }
     // Foreground is world anchored and confined outside the traversable entrance.
     const fg = this.foreground;
+    // Reflections sit on top of the solid floor's dark fascia, below all landing edges.
+    for (let k = 0; k < 14; k++) {
+      const x = 650 + k * 120 + Math.sin(w.time * 0.45 + k) * 4;
+      fg.lineStyle(1, k < 3 ? 0xb29665 : 0x58788a, 0.22);
+      fg.lineBetween(x, 3158 + (k % 3) * 17, x + 30 + (k % 4) * 12, 3158 + (k % 3) * 17);
+    }
     for (const x of [270, 2750]) {
-      fg.fillStyle(0x070e18);
+      const alpha = Math.abs(w.player.x - (x + 27)) < 95 && w.player.y > 2720 ? 0.12 : 1;
+      fg.fillStyle(0x070e18, alpha);
       fg.fillRect(x, 2780, 54, 520);
-      fg.fillStyle(0x1b2b37);
+      fg.fillStyle(0x1b2b37, alpha);
       fg.fillRect(x + 6, 2780, 5, 520);
       for (const y of [2840, 2990, 3200]) {
-        fg.fillStyle(0x060c13);
+        fg.fillStyle(0x060c13, alpha);
         fg.fillRect(x - 8, y, 70, 20);
       }
     }
