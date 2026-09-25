@@ -6,7 +6,6 @@ import { Renderer } from "../engine/Renderer";
 import { Synth } from "../engine/Effects";
 import { idleControls } from "../engine/Player";
 import { SliceWorld, freshSave, parseSave, SAVE_KEY, type Save } from "./SliceWorld";
-import { feel } from "./Juice";
 import { renderJuice, juiceStyle, juiceBannerHTML } from "./JuiceRender";
 import {
   organs,
