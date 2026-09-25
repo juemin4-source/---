@@ -1,6 +1,146 @@
 .slice-app {
   background: #10191d;
 }
+/* 打击感层：全屏效果与连杀横幅。pointer-events:none 保证不挡操作。 */
+.slice-app #juice {
+  position: absolute;
+  inset: 0;
+  z-index: 15;
+  pointer-events: none;
+  overflow: hidden;
+  transition:
+    box-shadow 90ms linear,
+    background 90ms linear;
+}
+.juice-streak {
+  position: absolute;
+  top: 12%;
+  left: 50%;
+  transform: translateX(-50%);
+  text-align: center;
+  color: #ffe9bb;
+  text-shadow:
+    0 0 12px #ff9b4d88,
+    0 2px 0 #1a0f0a;
+}
+.juice-streak b {
+  display: block;
+  font-size: 54px;
+  line-height: 1;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+.juice-streak small {
+  font-size: 13px;
+  letter-spacing: 0.4em;
+  opacity: 0.9;
+}
+.juice-streak i {
+  display: block;
+  height: 3px;
+  margin: 6px auto 0;
+  background: linear-gradient(90deg, #ffd08a, #ff6a3d);
+  box-shadow: 0 0 10px #ff8a4d;
+  transition: width 60ms linear;
+}
+#juice.tier-2 .juice-streak b {
+  color: #ffd089;
+}
+#juice.tier-3 .juice-streak b {
+  color: #ff9f5e;
+  font-size: 62px;
+}
+#juice.tier-4 .juice-streak b {
+  color: #ff6f52;
+  font-size: 70px;
+  animation: juice-pulse 320ms ease-in-out infinite alternate;
+}
+@keyframes juice-pulse {
+  from {
+    text-shadow:
+      0 0 14px #ff5a3c,
+      0 2px 0 #1a0f0a;
+  }
+  to {
+    text-shadow:
+      0 0 30px #ff8a4d,
+      0 2px 0 #1a0f0a;
+  }
+}
+.juice-mods {
+  position: absolute;
+  top: 6.6%;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 14px;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  color: #cfe4dd;
+  text-shadow: 0 1px 4px #000a;
+}
+.juice-mods span {
+  padding: 2px 8px;
+  border: 1px solid #ffffff22;
+  border-radius: 999px;
+  background: #0d181bcc;
+}
+.juice-mods.tier-2 span,
+.juice-mods.tier-3 span {
+  color: #ffd7a6;
+  border-color: #ffb06655;
+}
+.juice-mods.tier-4 span {
+  color: #ffb08a;
+  border-color: #ff7a4d88;
+  box-shadow: 0 0 12px #ff7a4d44;
+}
+.juice-banner {
+  position: absolute;
+  top: 30%;
+  left: 50%;
+  transform-origin: 50% 50%;
+  text-align: center;
+  color: #fff3d6;
+  transition: opacity 80ms linear;
+}
+.juice-banner:nth-child(2) {
+  top: 24%;
+}
+.juice-banner:nth-child(3) {
+  top: 38%;
+}
+.juice-banner b {
+  display: block;
+  font-size: 34px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-shadow:
+    0 0 18px currentColor,
+    0 3px 0 #1a0f0a;
+  transform: translateX(-50%);
+  margin-left: 50%;
+}
+.juice-banner span {
+  font-size: 12px;
+  letter-spacing: 0.2em;
+  opacity: 0.85;
+}
+.juice-banner.tier-2 b {
+  color: #ffd089;
+}
+.juice-banner.tier-3 b {
+  color: #ff9f5e;
+  font-size: 40px;
+}
+.juice-banner.tier-4 b {
+  color: #ff6f52;
+  font-size: 46px;
+}
+.juice-banner.tier-0 b {
+  font-size: 22px;
+  color: #cfe4dd;
+}
 .slice-app #overlay {
   position: absolute;
   inset: 0;

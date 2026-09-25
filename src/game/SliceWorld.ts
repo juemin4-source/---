@@ -8,6 +8,9 @@ import { EnemyCombat } from "./EnemyCombat";
 import type { WeaponId, SecondaryId } from "./config";
 import { Ascent } from "./Ascent";
 import { Armory } from "./Armory";
+import { Juice, feel } from "./Juice";
+
+const hex = (color: string) => parseInt(color.slice(1), 16);
 
 export class Carrier extends Enemy {
   weapon: WeaponId;
@@ -27,6 +30,11 @@ export class Carrier extends Enemy {
   vulnerability = 0;
   damageFactor = 1;
   spawnGrace = 0;
+  /** Poise: damage absorbed before the enemy is staggered out of its wind-up. */
+  poise = 0;
+  maxPoise = 0;
+  staggerLock = 0;
+  staggered = 0;
   constructor(
     kind: Enemy["kind"],
     x: number,
@@ -39,6 +47,7 @@ export class Carrier extends Enemy {
     // Elite bodies are twice as tall: spawning at the ordinary enemy centre put them inside the floor.
     this.y = Math.min(y, 610 - this.h / 2);
     this.hp = this.maxHp = kind === "elite" ? 650 : (kind === "reclaimer" ? 135 : 95) + risk * 12;
+    this.maxPoise = this.poise = kind === "elite" ? feel.poiseElite : feel.poiseNormal;
     this.cooldown = 1.2;
   }
 }
@@ -133,6 +142,7 @@ export class SliceWorld extends World {
   stackCounts: Partial<Record<OrganId, number>> = {};
   armory = new Armory(this);
   hostile = new EnemyCombat(this);
+  juice = new Juice();
   trainingWeapon: WeaponId | "auto" = "auto";
   trainingSecondary: SecondaryId | "none" = "none";
   heat = 0;
@@ -169,6 +179,7 @@ export class SliceWorld extends World {
     freezes: 0,
     shatters: 0,
     perfectDodges: 0,
+    staggers: 0,
   };
   constructor(
     public shortcut = false,
@@ -211,7 +222,7 @@ export class SliceWorld extends World {
     return this.has(id) ? (this.stackCounts[id] ?? 1) : 0;
   }
   speedFactor() {
-    return 1 + 0.25 * this.count("speed") + 0.4 * this.count("glass");
+    return (1 + 0.25 * this.count("speed") + 0.4 * this.count("glass")) * this.juice.speed;
   }
   get energyMax() {
     return 3 + Math.max(0, this.count("battery") - 1) * 2;
@@ -229,11 +240,12 @@ export class SliceWorld extends World {
   }
   power() {
     return (
-      1 +
-      (this.heat >= 60 ? 0.35 * this.count("hot") : 0) +
-      (this.shield > 0 ? 0.5 * this.count("shieldBurst") : 0) +
-      (1 - this.player.hp / this.player.maxHp) * 0.8 * this.count("rage") +
-      (!this.player.grounded ? 0.3 * this.count("airPower") : 0)
+      (1 +
+        (this.heat >= 60 ? 0.35 * this.count("hot") : 0) +
+        (this.shield > 0 ? 0.5 * this.count("shieldBurst") : 0) +
+        (1 - this.player.hp / this.player.maxHp) * 0.8 * this.count("rage") +
+        (!this.player.grounded ? 0.3 * this.count("airPower") : 0)) *
+      this.juice.power
     );
   }
   get vitalityLevel() {
@@ -537,11 +549,18 @@ export class SliceWorld extends World {
   override hurtPlayer(amount: number, fromX: number) {
     if (this.dead || this.god) return;
     if (this.player.invulnerable > 0) {
-      if (this.player.dashTime > 0 && this.perfectDash !== this.dashSerial && this.count("perfect")) {
+      // Any dash that slips through a real hit is a "perfect dodge": always rewarded with slow-mo,
+      // and with charge when 瞬息核 is installed.
+      if (this.player.dashTime > 0 && this.perfectDash !== this.dashSerial) {
         this.perfectDash = this.dashSerial;
-        this.energy = Math.min(this.energyMax, this.energy + this.count("perfect"));
         this.metrics.perfectDodges++;
-        this.say("完美闪避 → 充能");
+        this.juice.beat("perfect", this.player.x, this.player.y);
+        this.stamina = Math.min(100, this.stamina + 15);
+        this.player.dashCooldown = 0;
+        if (this.count("perfect")) {
+          this.energy = Math.min(this.energyMax, this.energy + this.count("perfect"));
+          this.say("完美闪避 → 充能");
+        } else this.say("完美闪避");
       }
       return;
     }
@@ -549,6 +568,7 @@ export class SliceWorld extends World {
       this.stamina = Math.max(0, this.stamina - 8 - amount * 0.25);
       if (this.armory.blockAge <= 0.18) {
         this.emit("phase", this.player.x, this.player.y, 0x9cdfff);
+        this.juice.beat("parry", this.player.x + this.player.facing * 30, this.player.y, 0x9cdfff);
         this.say("完美格挡");
         return;
       }
@@ -567,6 +587,8 @@ export class SliceWorld extends World {
     super.hurtPlayer(amount, fromX);
     if (before !== this.player.hp) {
       if (this.projectileHit) this.player.invulnerable = Math.min(this.player.invulnerable, 0.25);
+      this.juice.hurt();
+      this.juice.beat("hurt", this.player.x, this.player.y);
       this.hurtAt = this.time;
       this.metrics.damage += before - this.player.hp;
       this.extraction = 0;
@@ -592,13 +614,34 @@ export class SliceWorld extends World {
     e.aggro = 5;
     amount = this.hostile.defend(e, amount);
     const marked = e.mark > 0;
-    if (direct) amount *= this.power();
+    if (direct) amount *= this.power() * this.juice.executeScale(e.hp, e.maxHp);
     if (e.vulnerable > 0) amount *= 1 + e.vulnerability;
     const actual = Math.min(e.hp, amount);
     this.metrics.dealt += actual;
     this.recentDamage.push({ time: this.time, amount: actual });
     if (direct) {
       this.metrics.hits++;
+      // Poise: sustained direct hits break the enemy out of its wind-up, which is what turns
+      // "trading damage" into "pressing the attack".
+      if (e.staggerLock <= 0 && e.staggered <= 0) {
+        const poiseDamage = (heavy ? feel.poiseHeavy : feel.poiseHit) * this.juice.poisePower;
+        e.poise -= poiseDamage;
+        if (e.poise <= 0) {
+          e.poise = e.maxPoise;
+          e.staggerLock =
+            feel.staggerCooldown + (e.kind === "elite" ? feel.staggerEliteTime : feel.staggerTime);
+          e.staggered = e.kind === "elite" ? feel.staggerEliteTime : feel.staggerTime;
+          e.windup = 0;
+          e.charge = 0;
+          e.attack = Math.max(0, e.attack);
+          e.cooldown = Math.max(e.cooldown, e.staggered + 0.15);
+          e.vulnerable = Math.max(e.vulnerable, e.staggered);
+          e.vulnerability = Math.max(e.vulnerability, feel.staggerVulnerable);
+          this.metrics.staggers++;
+          this.juice.beat("stagger", e.x, e.y, 0xffe08a);
+          if (e.kind === "elite") this.say("母体破韧 · 硬直中");
+        }
+      }
       if (this.has("mark") && ++e.hits >= Math.max(1, Math.ceil(3 / (1 + 0.35 * (this.count("mark") - 1))))) {
         e.hits = 0;
         e.mark = 8 + 2 * (this.count("mark") - 1);
@@ -617,7 +660,27 @@ export class SliceWorld extends World {
     }
     this.push(e, impulse);
     super.damageEnemy(e, amount, 0, direct ? "hit" : "combo");
+    const color = hex(organs[e.organ].color),
+      angle = Math.atan2(e.y - this.player.y, e.x - this.player.x);
+    if (direct) this.juice.beat(heavy ? "heavy" : "hit", e.x, e.y, heavy ? 0xffc57d : 0xfff0c9, angle);
     if (e.dead) {
+      const elite = e.kind === "elite";
+      this.juice.kill(elite);
+      this.juice.beat(elite ? "eliteKill" : "kill", e.x, e.y, color, angle);
+      // The body flies in the direction the killing blow was already pushing it.
+      const launch = Math.min(900, Math.abs(e.impulseX) + (heavy ? 420 : 180));
+      this.juice.corpse(
+        e.x,
+        e.y,
+        Math.sign(e.impulseX || Math.cos(angle) || 1) * launch,
+        -260 - (heavy ? 180 : 0),
+        e.w / 2,
+        color,
+        elite,
+      );
+      if (this.juice.tier >= 1) this.stamina = Math.min(100, this.stamina + feel.killStamina);
+      // Kills refund the dash: the loop is dash in → kill → dash out, not walk-and-shoot.
+      this.player.dashCooldown = Math.min(this.player.dashCooldown, 0.12);
       this.cargo += e.kind === "elite" ? 180 : 10 + this.zone.risk * 5;
       const matching = this.drops.find((d) => d.organ === e.organ && Math.abs(d.x - e.x) < 110);
       if (matching) {
@@ -668,6 +731,7 @@ export class SliceWorld extends World {
         e.frozen = 0;
         e.stun = 0;
         this.metrics.shatters++;
+        this.juice.beat("shatter", e.x, e.y);
         this.blast(
           e.x,
           e.y,
@@ -704,6 +768,7 @@ export class SliceWorld extends World {
   }
   blast(x: number, y: number, damage: number, radius: number, push: number, except?: Carrier) {
     this.emit("detach", x, y, 0xedb76c);
+    this.juice.beat("blast", x, y, 0xedb76c);
     this.areaFlashes.push({ x, y, radius: Math.min(1800, radius), life: 0.32 });
     if (this.areaFlashes.length > 40) this.areaFlashes.shift();
     const targets = this.enemies.filter((e) => !e.dead && e !== except && distance(e, { x, y }) < radius);
@@ -720,6 +785,12 @@ export class SliceWorld extends World {
     e.mark = Math.max(0, e.mark - dt);
     e.frozen = Math.max(0, e.frozen - dt);
     e.vulnerable = Math.max(0, e.vulnerable - dt);
+    e.staggerLock = Math.max(0, e.staggerLock - dt);
+    if (e.staggered > 0) {
+      e.staggered = Math.max(0, e.staggered - dt);
+    } else if (e.poise < e.maxPoise) {
+      e.poise = Math.min(e.maxPoise, e.poise + feel.poiseRegen * dt);
+    }
     e.wallLock -= dt;
     e.pushed -= dt;
     e.cooldown -= dt;
@@ -732,7 +803,7 @@ export class SliceWorld extends World {
     const sight = this.canSee(e, p);
     if (d < 760 && Math.abs(p.y - e.y) < 220 && sight) e.aggro = 5;
     let speed = 0;
-    if ((d < 800 || this.training) && e.stun <= 0 && e.frozen <= 0) {
+    if ((d < 800 || this.training) && e.stun <= 0 && e.frozen <= 0 && e.staggered <= 0) {
       if (e.windup > 0) {
         e.windup = Math.max(0, e.windup - dt);
         if (e.windup === 0) {
@@ -806,6 +877,7 @@ export class SliceWorld extends World {
       (e.x >= this.width - 12 - e.w / 2 - 0.1 && incoming > 0);
     if (blocked && e.pushed > 0 && e.wallLock <= 0) {
       e.wallLock = 0.9;
+      this.juice.beat("wallSlam", e.x + Math.sign(incoming) * (e.w / 2), e.y, 0xedb76c);
       e.impulseX = 0;
       e.pushed = 0;
       if (this.has("battery")) {
@@ -939,6 +1011,8 @@ export class SliceWorld extends World {
     if (this.result || this.pendingDrop) return;
     this.time += dt;
     this.messageTime -= dt;
+    this.juice.update(dt);
+    this.player.moveScale = this.juice.move;
     this.grenadeCooldown = Math.max(0, this.grenadeCooldown - dt);
     for (const n of this.damageNumbers) {
       n.life -= dt;
@@ -986,6 +1060,7 @@ export class SliceWorld extends World {
       const height = Math.max(0, p.y - this.slamY),
         n = this.count("slam");
       this.slamming = false;
+      this.juice.beat("slam", p.x, p.y + 20, 0xf1e7c8);
       this.blast(p.x, p.y, 30 + height * 0.2 * n, this.attackRange(90 + height * 0.45 * n), 250 + height * n);
     }
     if (dash) {

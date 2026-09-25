@@ -6,6 +6,8 @@ import { Renderer } from "../engine/Renderer";
 import { Synth } from "../engine/Effects";
 import { idleControls } from "../engine/Player";
 import { SliceWorld, freshSave, parseSave, SAVE_KEY, type Save } from "./SliceWorld";
+import { feel } from "./Juice";
+import { renderJuice, juiceStyle, juiceBannerHTML } from "./JuiceRender";
 import {
   organs,
   organIds,
@@ -43,11 +45,18 @@ export class SliceScene extends Phaser.Scene {
   hudClock = 0;
   hud = document.getElementById("hud")!;
   overlay = document.getElementById("overlay")!;
+  juiceEl = document.getElementById("juice")!;
+  streakClock = 0;
   pending = idleControls();
   lastReward = 0;
   feedback = "";
   damageFlash = -1;
   muted = false;
+  warned = new Set<number>();
+  shakeTime = 0;
+  baseScrollX = 0;
+  baseScrollY = 0;
+  timeScale = 1;
   create() {
     document.getElementById("app")!.classList.add("slice-app");
     document.title = "永蚀 · 沉井上行 / 0.9";
@@ -378,7 +387,7 @@ export class SliceScene extends Phaser.Scene {
         this.world.interact();
         if (this.world.pendingDrop) this.resetInput();
       }
-      this.accumulator += Math.min(delta / 1000, 0.05);
+      this.accumulator += (Math.min(delta / 1000, 0.05) * this.timeScale) / 1;
       while (this.accumulator >= 1 / 120) {
         this.world.update(1 / 120, c, this.keys.E.isDown);
         c.jump = false;
@@ -392,30 +401,46 @@ export class SliceScene extends Phaser.Scene {
       this.pending = idleControls();
     }
     this.settle();
-    for (const sound of this.world.sounds.splice(0)) {
-      this.synth.play(sound);
-      if (sound === "ram" || sound === "hurt") this.cameras.main.shake(80, 0.002);
-    }
+    const juice = this.world.juice;
+    this.timeScale = juice.updateReal(Math.min(delta / 1000, 0.05));
+    for (const { beat, pitch } of juice.drainCues()) this.synth.play(beat, pitch);
+    // Legacy emit() path: 定相、拆件、冲刺、枪口等音效仍由这里播；重复的 cue 会被 synth 限流。
+    for (const sound of this.world.sounds.splice(0)) this.synth.play(sound);
+    for (const e of this.world.enemies)
+      if (e.windup > 0 && !this.warned.has(e.id)) {
+        this.warned.add(e.id);
+        this.synth.warn(e.kind === "elite" ? 1.4 : 1);
+      } else if (e.windup <= 0) this.warned.delete(e.id);
+    const cam = this.cameras.main,
+      p = this.world.player;
+    cam.setZoom(1 + juice.zoom);
+    // Base scroll is smoothed on its own so camera shake never feeds back into the follow.
     if (this.world.ascent) {
-      const cam = this.cameras.main,
-        p = this.world.player;
-      cam.scrollX = Phaser.Math.Linear(
-        cam.scrollX,
+      this.baseScrollX = Phaser.Math.Linear(
+        this.baseScrollX,
         Phaser.Math.Clamp(p.x - 640, 0, this.world.width - 1280),
         0.14,
       );
-      cam.scrollY = Phaser.Math.Linear(
-        cam.scrollY,
+      this.baseScrollY = Phaser.Math.Linear(
+        this.baseScrollY,
         Phaser.Math.Clamp(p.y - 400, 0, this.world.height - 720),
         0.14,
       );
+    } else {
+      this.baseScrollX = 0;
+      this.baseScrollY = 0;
     }
-    this.renderWorld(mouse.x + this.cameras.main.scrollX, mouse.y + this.cameras.main.scrollY);
+    this.shakeTime += Math.min(delta / 1000, 0.05);
+    const shake = juice.shake(this.shakeTime);
+    cam.setScroll(this.baseScrollX + shake.x, this.baseScrollY + shake.y);
+    cam.setRotation(shake.angle);
+    this.renderWorld(mouse.x + cam.scrollX, mouse.y + cam.scrollY);
     this.hudClock += delta;
     if (this.hudClock > 90) {
       this.refreshHUD();
       this.hudClock = 0;
     }
+    this.refreshJuice(delta / 1000);
     this.refreshOverlay();
   }
   renderWorld(mx: number, my: number) {
@@ -526,6 +551,20 @@ export class SliceScene extends Phaser.Scene {
           g.lineBetween(e.x + 9, e.y - 9, e.x - 9, e.y + 9);
         }
         if (e.stun > 0) this.art.label(`stun-${e.id}`, e.x - 18, e.y - 50, "眩晕", "#ffd599", 12);
+        if (e.staggered > 0) {
+          g.fillStyle(0xffe08a, 0.16);
+          g.fillRect(e.x - e.w / 2 - 8, e.y - e.h / 2 - 8, e.w + 16, e.h + 16);
+          g.lineStyle(3, 0xffe08a, 0.9);
+          g.strokeRect(e.x - e.w / 2 - 8, e.y - e.h / 2 - 8, e.w + 16, e.h + 16);
+          this.art.label(`stagger-${e.id}`, e.x - 26, e.y - e.h / 2 - 22, "破韧", "#ffe08a", 14);
+        } else if (e.maxPoise > 0 && e.poise < e.maxPoise * 0.55) {
+          // Poise bar: visible progress toward the next break keeps the aggression legible.
+          const w2 = e.w + 20;
+          g.fillStyle(0x241d18, 0.8);
+          g.fillRect(e.x - w2 / 2, e.y + e.h / 2 + 8, w2, 3);
+          g.fillStyle(0xffe08a, 0.9);
+          g.fillRect(e.x - w2 / 2, e.y + e.h / 2 + 8, (w2 * e.poise) / e.maxPoise, 3);
+        }
         if (e.windup > 0) {
           g.lineStyle(2, 0xff8992, 0.65);
           if (["handgun", "rifle", "sniper"].includes(e.weapon)) g.lineBetween(e.x, e.y, e.aimX, e.aimY);
@@ -675,12 +714,44 @@ export class SliceScene extends Phaser.Scene {
       g.strokeCircle(w.player.x, w.player.y, 37);
     }
     w.ascent?.render(this.art);
+    renderJuice(this.art, w.juice, w.time);
+    // Frenzy halo around the player: an at-a-glance read of how hot the streak is.
+    const tier = w.juice.tier;
+    if (tier > 0) {
+      const pulse = 0.5 + Math.sin(this.shakeTime * (6 + tier * 2)) * 0.5,
+        r = 34 + tier * 5 + pulse * 5,
+        col = tier >= 3 ? 0xff7a4d : tier >= 2 ? 0xffb066 : 0x9cd8cb;
+      g.lineStyle(2 + tier, col, 0.28 + tier * 0.12);
+      g.strokeCircle(w.player.x, w.player.y, r);
+      if (tier >= 2) {
+        g.lineStyle(1, col, 0.2);
+        g.strokeCircle(w.player.x, w.player.y, r + 9);
+      }
+    }
     if (this.art.labels.size > 450)
       for (const [key, label] of this.art.labels)
         if (!label.visible) {
           label.destroy();
           this.art.labels.delete(key);
         }
+  }
+  /** Frenzy HUD, streak timer, banners and screen effects — refreshed every frame, not every 90ms. */
+  refreshJuice(dt: number) {
+    const juice = this.world.juice;
+    this.streakClock -= dt;
+    if (this.streakClock <= 0) {
+      this.streakClock = 0.05;
+      const tier = juice.tier;
+      this.juiceEl.className = tier ? `tier-${tier}` : "";
+      this.juiceEl.style.cssText = juiceStyle(juice);
+      const killed = this.world.stats.kills;
+      this.juiceEl.innerHTML = `${
+        juice.streak
+          ? `<div class="juice-streak tier-${tier}"><b>${juice.streak}</b><small>${juice.tierName || "连杀"}</small><i style="width:${(juice.streakRatio * 100).toFixed(1)}%"></i></div>`
+          : ""
+      }${tier > 0 ? `<div class="juice-mods tier-${tier}"><span>攻速 +${Math.round((juice.speed - 1) * 100)}%</span><span>伤害 +${Math.round((juice.power - 1) * 100)}%</span><span>移速 +${Math.round((juice.move - 1) * 100)}%</span></div>` : ""}${juiceBannerHTML(juice)}`;
+      void killed;
+    }
   }
   slotCard(id: OrganId | undefined, index: number, button = false) {
     const tag = button ? "button" : "div",

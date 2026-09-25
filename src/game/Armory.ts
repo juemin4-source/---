@@ -84,6 +84,8 @@ export class Armory {
     w.projectiles.push(b);
     w.metrics.shots++;
     w.emit("shot", b.x, b.y, heavy ? 0xffc87e : 0xe7edbd, angle);
+    w.juice.beat("shot", b.x, b.y, heavy ? 0xffc87e : 0xe7edbd, angle);
+    if (powered) w.juice.beat("heavy", b.x, b.y, 0xa6d2ec, angle);
   }
   melee(damage: number, heavy: boolean, radius: number) {
     const w = this.w,
@@ -112,6 +114,7 @@ export class Armory {
     }
     w.metrics.shots++;
     w.emit("melee", p.x, p.y, heavy ? 0xedb76c : 0xe8edd0, p.aim);
+    if (heavy) w.juice.beat("heavy", p.x + Math.cos(p.aim) * 40, p.y + Math.sin(p.aim) * 40, 0xedb76c, p.aim);
   }
   deploy() {
     const w = this.w;

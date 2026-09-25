@@ -40,6 +40,8 @@ export class Player extends Body {
   coyote = 0;
   jumpBuffer = 0;
   externalX = 0;
+  /** Run-speed multiplier set by the game layer (e.g. frenzy). */
+  moveScale = 1;
   constructor() {
     super(130, 580, 25, 48);
   }
@@ -65,7 +67,7 @@ export class Player extends Body {
       integrate(this, dt, platforms, 0);
       return;
     }
-    const target = dir * 325;
+    const target = dir * 325 * this.moveScale;
     this.vx += clamp(
       target - this.vx,
       -(this.grounded ? 4100 : 2100) * dt,
