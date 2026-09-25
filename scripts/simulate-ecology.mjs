@@ -67,6 +67,20 @@ const evolved = eco.log.filter((e) => e.event === "enemy_evolve").slice(-10);
 const apexLog = eco.log.filter((e) => e.event === "apex_created").map((e) => e.detail);
 const absorbs = eco.log.filter((e) => e.event === "enemy_absorb");
 const invalid = [snap.threat, snap.biomass, snap.maxBiomass].filter((v) => !Number.isFinite(v));
+// Role-cycle health: which roles kill which. A working cycle shows all three pairings occurring,
+// and no single role permanently owning the map.
+const kills = eco.log.filter((e) => e.event === "enemy_killed" && e.detail.includes("(creature)"));
+const roleOf = new Map(eco.creatures.map((c) => [c.name, c.role]));
+const pairings = {};
+for (const k of kills) {
+  const m = k.detail.match(/^(\S+) by (\S+)/);
+  if (!m) continue;
+  const key = `${roleOf.get(m[2]) ?? "?"}→${roleOf.get(m[1]) ?? "?"}`;
+  pairings[key] = (pairings[key] ?? 0) + 1;
+}
+const aliveByRole = { scavenger: 0, hunter: 0, floater: 0 };
+for (const c of eco.alive) aliveByRole[c.role]++;
+const apexRoles = eco.alive.filter((c) => c.isApex).map((c) => `${c.name}:${c.role}`);
 
 console.log(
   JSON.stringify(
@@ -119,6 +133,15 @@ console.log(
         })),
       apexHistory: apexLog,
       lastEvolutions: evolved.map((e) => e.detail),
+      roleCycle: {
+        pairings,
+        aliveByRole,
+        apexRoles,
+        allThreePairingsPresent: ["scavenger→hunter", "hunter→floater", "floater→scavenger"].every(
+          (k) => (pairings[k] ?? 0) > 0,
+        ),
+        dominantRoleShare: +(Math.max(...Object.values(aliveByRole)) / Math.max(1, snap.alive)).toFixed(2),
+      },
       absorbSamples: absorbs.slice(-6).map((e) => e.detail),
       threatCurve: curve.filter((_, i) => i % 2 === 0),
       invalidNumbers: invalid.length,

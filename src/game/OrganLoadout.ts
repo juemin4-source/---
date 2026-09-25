@@ -1,4 +1,5 @@
 import type { OrganId } from "./config";
+import { dominantArchetype, type Archetype } from "./expedition/Counters";
 
 /** A body's organ build: which organs it carries and how many stacks of each. Shared by enemies. */
 export class OrganLoadout {
@@ -38,6 +39,10 @@ export class OrganLoadout {
   /** Highest-stacked organ; used for colour and a one-word label. */
   get primary(): OrganId | undefined {
     return this.entries().sort((a, b) => b[1] - a[1])[0]?.[0];
+  }
+  /** Dominant archetype of this build — what it tends to beat. See expedition/Counters. */
+  dominant(): Archetype | null {
+    return dominantArchetype(this.toJSON());
   }
   toJSON() {
     return Object.fromEntries(this.entries());

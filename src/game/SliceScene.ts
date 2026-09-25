@@ -1,5 +1,6 @@
 import Phaser from "phaser";
 import { enemyModuleHints } from "./EnemyCombat";
+import { ARCHETYPES, matchup } from "./expedition/Counters";
 import { districts } from "./AscentMap";
 import { guideHTML, nextBuildTarget, fieldBuilds } from "./BuildGuide";
 import { Renderer } from "../engine/Renderer";
@@ -497,15 +498,21 @@ export class SliceScene extends Phaser.Scene {
         g.fillCircle(e.x + 24, e.y - 17, 7);
         g.lineStyle(2, c, 0.7);
         g.lineBetween(e.x + 15, e.y - 8, e.x + 24, e.y - 17);
+        const arche = e.organs.dominant();
+        const mine = w.playerArchetype();
+        // Show the matchup on the label itself: the player must be able to see which bodies they
+        // beat and which ones beat them, or the counter cycle may as well not exist.
+        const swing = arche && mine ? matchup(mine, arche) : 1;
         this.art.label(
           `carrier-${e.id}`,
           e.x - 49,
           e.y - e.h / 2 - 28,
-          e.organs
-            .entries()
-            .map(([id, n]) => organs[id].name + (n > 1 ? `×${n}` : ""))
-            .join(" "),
-          o.color,
+          `${arche ? ARCHETYPES[arche].name : "无相性"}${swing > 1 ? " ▼克制" : swing < 1 ? " ▲被克" : ""} · ` +
+            e.organs
+              .entries()
+              .map(([id, n]) => organs[id].name + (n > 1 ? `×${n}` : ""))
+              .join(" "),
+          swing > 1 ? "#ffd27d" : swing < 1 ? "#ff8f9b" : o.color,
           13,
         );
         const ek = w.hostile.kit(e);

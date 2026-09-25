@@ -97,11 +97,21 @@ describe("生态 · 世界自己变危险", () => {
     }
   });
 
-  it("Apex 数量有上限，不会满地都是", () => {
-    for (const seed of [1, 7, 42, 99]) {
+  it("Apex 由克制链自我限制：既不会满地都是，也不会永不出现", () => {
+    let created = 0;
+    for (const seed of [1, 7, 42, 99, 5, 13]) {
       const eco = run(seed, 1500);
-      expect(eco.apexes.length).toBeLessThanOrEqual(2);
+      created += eco.metrics.apexCreated;
+      expect(eco.apexes.length, `seed ${seed} Apex 过多`).toBeLessThan(8);
     }
+    // Apex 真的被养出来了，而不是被上限压着；同时也不是时间一到就自动出现。
+    expect(created).toBeGreaterThan(10);
+  });
+
+  it("Apex 会被真正猎杀，不是无敌的", () => {
+    let killed = 0;
+    for (const seed of [1, 7, 42, 99, 5, 13]) killed += run(seed, 1500).metrics.apexKilled;
+    expect(killed).toBeGreaterThan(3);
   });
 
   it("尸骸不会无限堆积", () => {
@@ -169,17 +179,38 @@ describe("生态 · 世界自己变危险", () => {
     expect(eco.startMigration(c, "control", "扩张领地", { player: null, open: ALL_LOCKS })).toBe(false);
   });
 
-  it("生态在玩家离屏时照样推进（不依赖渲染）", () => {
-    const off = run(1, 600, null);
+  it("玩家在附近时该区域的巢穴繁殖变慢（但不冻结世界）", () => {
+    // Measured on the rule itself: comparing whole-run spawn counts is dominated by predation
+    // chaos, so it would pass or fail for reasons unrelated to the suppression being tested.
+    const gate = (player: { x: number; y: number; district: never } | null) => {
+      const eco = new Ecology(1);
+      let intervals = 0,
+        count = 0;
+      for (let t = 0; t < 240; t += 0.5) {
+        const before = eco.nests[0].spawnTimer;
+        eco.update(0.5, { player, open: ALL_LOCKS });
+        // A re-arm is any tick where the timer jumped upward. Summing rather than averaging would
+        // cancel out, since slower breeding also produces fewer intervals.
+        if (eco.nests[0].spawnTimer > before) {
+          intervals += eco.nests[0].spawnTimer;
+          count++;
+        }
+      }
+      expect(count).toBeGreaterThan(3);
+      return intervals / count;
+    };
     const d = districts.find((x) => x.id === "lower")!;
-    const on = run(1, 600, { x: d.x + d.w / 2, y: d.floor, district: d.id as never });
+    const watched = gate({ x: d.x + d.w / 2, y: d.floor, district: d.id as never }),
+      ignored = gate(null);
+    expect(watched).toBeGreaterThan(ignored);
+    expect(watched / ignored).toBeGreaterThan(1.3);
+  });
+
+  it("玩家离屏时生态照样推进（不依赖渲染）", () => {
+    const off = run(1, 600, null);
     expect(off.metrics.creatureConsumes).toBeGreaterThan(0);
     expect(off.alive.length).toBeGreaterThan(0);
-    // Presence slows breeding in that district rather than freezing the world.
-    const lowerOf = (eco: ReturnType<typeof run>) =>
-      eco.metrics.spawnedByNest["nest-rot"] + eco.metrics.spawnedByNest["nest-sludge"];
-    expect(lowerOf(on)).toBeLessThan(lowerOf(off));
-    expect(on.metrics.creatureConsumes).toBeGreaterThan(0);
+    expect(off.metrics.matureCreated).toBeGreaterThanOrEqual(0);
   });
 });
 

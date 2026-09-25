@@ -10,6 +10,7 @@ import { Ascent } from "./Ascent";
 import { Armory } from "./Armory";
 import { Juice, feel } from "./Juice";
 import { OrganLoadout } from "./OrganLoadout";
+import { matchup, organArchetype, type Archetype } from "./expedition/Counters";
 
 const hex = (color: string) => parseInt(color.slice(1), 16);
 
@@ -237,6 +238,13 @@ export class SliceWorld extends World {
   }
   count(id: OrganId) {
     return this.has(id) ? (this.stackCounts[id] ?? 1) : 0;
+  }
+  /** The player's dominant organ archetype, or null when carrying nothing. */
+  playerArchetype(): Archetype | null {
+    const totals: Record<Archetype, number> = { charge: 0, chain: 0, suppress: 0 };
+    for (const id of this.slots) totals[organArchetype[id]] += this.count(id);
+    const best = (["chain", "charge", "suppress"] as Archetype[]).sort((a, b) => totals[b] - totals[a])[0];
+    return totals[best] > 0 ? best : null;
   }
   speedFactor() {
     return (1 + 0.25 * this.count("speed") + 0.4 * this.count("glass")) * this.juice.speed;
@@ -649,6 +657,10 @@ export class SliceWorld extends World {
     this.ascent?.awakened.add(e.id);
     e.aggro = 5;
     amount = this.hostile.defend(e, amount);
+    // Organ archetype matchup: the player's dominant archetype versus this body's.
+    const mine = this.playerArchetype(),
+      theirs = e.organs.dominant();
+    if (mine && theirs) amount *= matchup(mine, theirs);
     const marked = e.mark > 0;
     if (direct) amount *= this.power() * this.juice.executeScale(e.hp, e.maxHp);
     if (e.vulnerable > 0) amount *= 1 + e.vulnerability;

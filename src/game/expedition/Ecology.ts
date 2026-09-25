@@ -1,8 +1,9 @@
 import { SeededRandom } from "./SeededRandom";
+import { canHunt, roleAdvantage, roleCounteredBy } from "./Counters";
 import { OrganLoadout } from "../OrganLoadout";
 import type { OrganId, WeaponId, SecondaryId } from "../config";
 import type { EnemyKind } from "../../engine/Enemy";
-import { districtById, districts, nestDefs, route, type DistrictId } from "./ExpeditionMap";
+import { districtById, districts, links, nestDefs, route, type DistrictId } from "./ExpeditionMap";
 import {
   STAGE_BIOMASS,
   isAtLeast,
@@ -45,10 +46,19 @@ const NEAR_RADIUS = 1400;
 const DISTRICT_POP_CAP = 8;
 const GLOBAL_POP_CAP = 48;
 const PREDATE_COOLDOWN = 32;
-/** Simultaneous apex bodies. Enough to make a return trip dangerous, few enough to stay special. */
-const APEX_CAP = 2;
-/** Hard ceiling so a long run cannot inflate one body's biomass (and thus HP) without limit. */
-const BIOMASS_CEILING = 58;
+/** Apex count is limited by the role cycle, not by a constant. This ceiling only stops biomass
+ *  (and therefore HP) inflating without bound in an extremely long run. */
+const BIOMASS_CEILING = 90;
+/**
+ * Biomass reachable by grazing alone. A juvenile that never wins a fight stalls just short of
+ * mature; a body must eat corpses (or prey) to grow up. This is what makes ecology growth a
+ * consequence of events in the world rather than of elapsed time.
+ */
+const GRAZE_CAP: Record<Stage, number> = {
+  juvenile: STAGE_BIOMASS.mature - 1.5,
+  mature: STAGE_BIOMASS.apex - 2,
+  apex: BIOMASS_CEILING,
+};
 
 export class Ecology {
   rng: SeededRandom;
@@ -160,13 +170,8 @@ export class Ecology {
 
   private evolve(c: EcoCreature, stage: Stage) {
     const from = c.stage;
-    // The map only supports a couple of true apex bodies at once; extra growth is held back
-    // rather than deleted, so it can still mature later if an apex dies.
-    if (stage === "apex" && this.alive.filter((o) => o.isApex).length >= APEX_CAP) {
-      c.stage = "mature";
-      c.biomass = Math.min(c.biomass, STAGE_BIOMASS.apex - 0.5);
-      return;
-    }
+    // No apex cap: the role cycle keeps the top of the food chain contested on its own. A hard
+    // limit would be a patch over a rule that was wrong, not a rule.
     c.stage = stage;
     if (stage === "mature") this.metrics.matureCreated++;
     if (stage === "apex") {
@@ -259,22 +264,64 @@ export class Ecology {
       this.approach(c, player.x, player.y + 24, 90, dt);
       return;
     }
-    // 2. A nearby hostile creature, but never same-nest (that is what stops cannibal wipeouts).
+    // 2. A creature fight. This is a resolution, not an attrition race: whoever is favoured by the
+    //    role cycle wins, and size only decides the upsets. Two properties matter.
+    //    First, the loser fights back — previously the target stood still, so whoever attacked
+    //    first always won and nothing could ever kill a grown body.
+    //    Second, the loser is often driven off rather than killed, so a district keeps a mix of
+    //    roles instead of one colony erasing another.
     if (c.intent === "fightCreature" && c.target !== null) {
       const t = live.find((o) => o.id === c.target);
-      if (!t || this.rng.chance(0.06)) {
+      // `intentTime` is this hunt's remaining patience. A flat per-tick chance of giving up was
+      // wrong: nests in one district sit hundreds of pixels apart, so crossing that gap takes many
+      // ticks and almost every hunt aborted before contact — which stalled entire seeds.
+      if (!t || c.intentTime <= 0) {
         c.intent = "roam";
         c.target = null;
       } else {
+        // Cross-district hunts are real journeys: the predator walks the link toward the prey's
+        // district and adopts it on arrival, so the food web spans the whole map.
+        if (t.district !== c.district) {
+          const d = districtById[t.district];
+          this.approach(c, d.x + d.w / 2, d.floor - 24, 80, dt);
+          if (Math.abs(c.x - (d.x + d.w / 2)) < 90) c.district = t.district;
+          return;
+        }
         this.approach(c, t.x, t.y, 80, dt);
         if (Math.hypot(t.x - c.x, t.y - c.y) < 46) {
-          t.hp -= 30;
-          if (t.hp <= 0) {
+          // The role matchup decides the exchange; size only shifts the odds. A hunter that
+          // answers a floater can bring down a far larger body, which is the whole point of the
+          // cycle — a pure size race made the biggest creature on the map effectively immortal
+          // (no apex was ever killed), so the map always ended with an uncontested bully.
+          const adv = roleAdvantage(c.role, t.role),
+            size = c.biomass / Math.max(1, t.biomass);
+          // A predator that has picked this fight at all is usually favoured; the matchup decides
+          // how lopsided it is. Making the neutral case a coin-flip-or-worse stalled whole seeds,
+          // because a healthy colony would stop hunting and the district froze.
+          const winChance =
+            adv > 1 ? 0.8 : adv < 1 ? 0.12 * Math.min(1, size / 2.2) : size > 1.15 ? 0.7 : 0.45;
+          if (this.rng.chance(winChance)) {
+            // Killing a creature feeds the killer immediately. A corpse on the ground is not
+            // enough on its own: predators would win fight after fight and still never grow,
+            // because the meal is a separate journey the winner often never completes.
+            c.biomass = Math.min(BIOMASS_CEILING, c.biomass + 2.5 + t.biomass * 0.22);
+            c.hunger = Math.max(0, c.hunger - 1.2);
+            this.refreshStats(c);
             this.kill(t, c.name, "creature");
-            // A predator eats what it just killed: this is how biomass climbs the food chain.
+            // A predator also eats what it killed, so the kill is worth following up.
             c.intent = "seekRemains";
             c.remainsTarget = null;
             c.intentTime = 0;
+          } else {
+            // Losing the exchange costs the attacker real health and breaks off the hunt, so a
+            // body that keeps picking fights above its weight does eventually die of it.
+            c.hp -= 26 * (adv < 1 ? 1.6 : 1);
+            if (c.hp <= 0) this.kill(c, t.name, "creature");
+            else {
+              c.intent = "roam";
+              c.target = null;
+              c.intentTime = PREDATE_COOLDOWN;
+            }
           }
         }
         return;
@@ -309,28 +356,39 @@ export class Ecology {
         return;
       }
     }
-    // 5. Predation. Each district holds exactly one nest, so requiring a different nest AND the
-    //    same district would mean nobody ever hunts anything. Instead: same district (or close by),
-    //    and same-nest cannibalism only when the predator is a full stage above and genuinely hungry.
-    if (this.canPredate(c) && c.intentTime <= 0) {
+    // 5. Predation along the role cycle (腐食者→猎人→漂浮者→腐食者). A favourable role matchup
+    //    lets a smaller body take a bigger one, so no single creature dominates unchallenged.
+    //    This replaces a pure "bigger biomass wins" rule, which was a one-way slope: it always
+    //    converged on one uncontested bully and then the district went static forever.
+    if (c.intentTime <= 0) {
       const prey = live
         .filter((o) => {
-          if (!o.alive || o === c || o.stage === "apex") return false;
+          if (!o.alive || o === c || !canHunt(c, o)) return false;
+          // An apex is never immune, but only a grown body can bring one down. This is what keeps
+          // the top of the food chain contested without a hard apex cap.
+          if (o.stage === "apex" && c.stage === "juvenile") return false;
           const sameNest = o.home === c.home;
-          // Same-nest cannibalism is allowed only when one body clearly outclasses another and is
-          // genuinely hungry. Without this, a district whose colony has wiped out its rival goes
-          // permanently static and nothing ever grows up.
+          // Kin are eaten only by a much larger, hungry relative — otherwise a colony eats itself.
           if (sameNest && !(c.biomass > o.biomass * 2.5 && c.hunger > 0.5 && isAtLeast(c.stage, "mature")))
             return false;
           if (!sameNest && c.stage === "juvenile" && o.stage !== "juvenile") return false;
-          if (!(o.district === c.district || Math.hypot(o.x - c.x, o.y - c.y) < 420)) return false;
-          return o.biomass < c.biomass * 0.8 || o.stage === "juvenile";
+          // Hunting is possible in your own district and in directly linked ones. Restricting it
+          // to a single district meant that only "lower" (the one district holding two nests) ever
+          // saw a fight, so two thirds of the map could never grow anything — the food web has to
+          // follow the map's own links to cover the whole map.
+          return (
+            o.district === c.district ||
+            this.adjacent(c.district).includes(o.district) ||
+            Math.hypot(o.x - c.x, o.y - c.y) < 420
+          );
         })
-        .sort((a, b) => a.biomass - b.biomass)[0];
+        // The strongest legal meal it can actually beat, not simply the largest body nearby.
+        .sort((a, b) => b.biomass - a.biomass)[0];
       if (prey && (c.hunger > 0.7 || c.stage !== "juvenile" || this.rng.chance(0.4))) {
         c.intent = "fightCreature";
         c.target = prey.id;
-        c.intentTime = PREDATE_COOLDOWN;
+        // Patience must cover the distance to the prey, or a cross-district hunt expires en route.
+        c.intentTime = PREDATE_COOLDOWN + Math.hypot(prey.x - c.x, prey.y - c.y) / 60;
         return;
       }
       if (prey) c.intentTime = 3;
@@ -347,14 +405,14 @@ export class Ecology {
     // 7. Idle bodies drift back toward their nest, or wander off when grown.
     const home = districtById[c.homeDistrict];
     const leash = c.stage === "juvenile" ? 260 : c.stage === "mature" ? 900 : 2600;
-    // Passive feeding: every body grazes its home district. Growth must not depend on finding a
-    // corpse, or a district where predation has stopped goes permanently static and nothing matures.
+    // Grazing alone must never be enough to grow up. A creature's ceiling is set by what it has
+    // eaten: a body that only grazes tops out as a big juvenile, and only real kills (corpses and
+    // predation) push it past that. Otherwise Apex would appear purely because time passed, which
+    // is exactly the "danger comes from a clock" rule this design forbids.
     const nest = this.nests.find((n) => n.id === c.home);
-    if (c.district === c.homeDistrict && c.hunger < 1.6) {
-      c.biomass = Math.min(
-        BIOMASS_CEILING,
-        c.biomass + dt * (0.012 + 0.0008 * Math.max(0, nest?.biomass ?? 0)),
-      );
+    const grazeCap = GRAZE_CAP[c.stage];
+    if (c.district === c.homeDistrict && c.hunger < 1.6 && c.biomass < grazeCap) {
+      c.biomass = Math.min(grazeCap, c.biomass + dt * (0.012 + 0.0008 * Math.max(0, nest?.biomass ?? 0)));
       c.hunger = Math.max(0, c.hunger - dt * 0.006);
       if (stageOf(c.biomass) !== c.stage) this.refreshStats(c);
     }
@@ -376,13 +434,20 @@ export class Ecology {
     }
   }
 
-  private canPredate(c: EcoCreature) {
-    if (c.stage === "juvenile" && c.role !== "hunter") return false;
-    return c.role === "hunter" || c.stage !== "juvenile";
-  }
-
   private nestX(homeId: string) {
     return this.nests.find((n) => n.id === homeId)?.x ?? 0;
+  }
+
+  /** Districts directly reachable from this one, cached — this defines the food web's edges. */
+  private adjacentCache = new Map<DistrictId, DistrictId[]>();
+  private adjacent(id: DistrictId): DistrictId[] {
+    const hit = this.adjacentCache.get(id);
+    if (hit) return hit;
+    const out = links
+      .filter((l) => !l.lock && (l.a === id || l.b === id))
+      .map((l) => (l.a === id ? l.b : l.a));
+    this.adjacentCache.set(id, out);
+    return out;
   }
 
   private approach(c: EcoCreature, x: number, y: number, speed: number, dt: number) {
@@ -487,10 +552,30 @@ export class Ecology {
       const suppressed = ctx.player && ctx.player.district === n.district ? 1.6 : 1;
       n.spawnTimer = base * suppressed * this.rng.range(0.85, 1.2);
       if (districtPop >= cap) continue;
-      const role =
+      // What a nest breeds responds to what is eating it. If this colony is being hunted by its
+      // counter, it leans toward the role that counters that hunter — this feedback is what keeps
+      // the cycle circulating instead of letting one role take the district permanently.
+      const home = this.alive.filter((c) => c.home === n.id);
+      const threat = home.length
+        ? (Object.keys(roleCounteredBy) as (keyof typeof roleCounteredBy)[]).reduce(
+            (worst, r) => (home.some((c) => c.role === r) ? r : worst),
+            "scavenger" as keyof typeof roleCounteredBy,
+          )
+        : null;
+      const answer = threat ? roleCounteredBy[threat] : null;
+      const weights: Partial<Record<Role, number>> =
         n.state === "swollen"
-          ? this.rng.weighted({ scavenger: 2, hunter: 4, floater: 2 })
-          : this.rng.weighted({ scavenger: 5, hunter: 3, floater: 1 });
+          ? {
+              scavenger: answer === "scavenger" ? 6 : 2,
+              hunter: answer === "hunter" ? 6 : 4,
+              floater: answer === "floater" ? 6 : 2,
+            }
+          : {
+              scavenger: answer === "scavenger" ? 7 : 5,
+              hunter: answer === "hunter" ? 7 : 3,
+              floater: answer === "floater" ? 7 : 1,
+            };
+      const role = this.rng.weighted(weights);
       const c = this.spawn(n, role);
       if (c) n.spawned++;
     }
