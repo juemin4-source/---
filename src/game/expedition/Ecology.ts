@@ -1,5 +1,5 @@
 import { SeededRandom } from "./SeededRandom";
-import { canHunt, roleAdvantage, roleCounteredBy } from "./Counters";
+import { canHunt, matchup, roleAdvantage, roleCounteredBy } from "./Counters";
 import { OrganLoadout } from "../OrganLoadout";
 import type { OrganId, WeaponId, SecondaryId } from "../config";
 import type { EnemyKind } from "../../engine/Enemy";
@@ -70,6 +70,7 @@ export class Ecology {
   nextRemains = 1;
   metrics: EcoMetrics = {
     creaturesSpawned: 0,
+    deaths: 0,
     spawnedByNest: {},
     creatureConsumes: 0,
     creatureVsCreatureKills: 0,
@@ -79,6 +80,7 @@ export class Ecology {
     apexKilled: 0,
     maxEnemyUniqueOrgans: 0,
     maxEnemyOrganLayers: 0,
+    stackedBodies: 0,
     maxEnemyBiomass: 0,
     peakThreat: 0,
     remainsCreated: 0,
@@ -165,6 +167,9 @@ export class Ecology {
     if (c.hp <= 1) c.hp = c.maxHp;
     this.metrics.maxEnemyUniqueOrgans = Math.max(this.metrics.maxEnemyUniqueOrgans, c.organs.uniqueCount);
     this.metrics.maxEnemyOrganLayers = Math.max(this.metrics.maxEnemyOrganLayers, c.organs.totalLayers);
+    // Bodies that ever stacked the same organ, counted over the whole run: reading it off the
+    // live list is unreliable because deeply stacked bodies are also the ones most likely to die.
+    if (c.organs.entries().some(([, n]) => n > 1)) this.metrics.stackedBodies++;
     this.metrics.maxEnemyBiomass = Math.max(this.metrics.maxEnemyBiomass, c.biomass);
   }
 
@@ -188,16 +193,35 @@ export class Ecology {
     if (!c.alive) return null;
     c.alive = false;
     c.hp = 0;
+    this.metrics.deaths++;
     if (cause === "starve") {
       this.metrics.starvationDeaths++;
       this.record("enemy_starve", `${c.name} (${killer})`);
     } else {
       this.record("enemy_killed", `${c.name} by ${killer} (${cause})`);
-      if (cause === "creature") this.metrics.creatureVsCreatureKills++;
+      if (cause === "creature") {
+        this.metrics.creatureVsCreatureKills++;
+        // Record the role pairing at kill time. Reading it back off the corpses later does not
+        // work, because dead bodies are pruned from the list.
+        const killerCreature = this.creatures.find((o) => o.name === killer);
+        if (killerCreature) {
+          const key = `${killerCreature.role}→${c.role}`;
+          this.roleKills[key] = (this.roleKills[key] ?? 0) + 1;
+          // Organ archetype of the winner, also recorded at kill time. Reconstructing this from
+          // the kill log later fails, because a winner that dies afterwards is pruned.
+          const arche = killerCreature.organs.dominant() ?? "none";
+          this.archetypeKills[arche] = (this.archetypeKills[arche] ?? 0) + 1;
+        }
+      }
       if (c.isApex) this.metrics.apexKilled++;
     }
     return this.createRemains(c);
   }
+
+  /** Predation tallies by role pairing, e.g. "hunter→floater". Proof the cycle circulates. */
+  roleKills: Record<string, number> = {};
+  /** Creature kills won by each organ archetype — proof the organ cycle matters in the world. */
+  archetypeKills: Record<string, number> = {};
 
   createRemains(c: EcoCreature) {
     const r: Remains = {
@@ -247,6 +271,9 @@ export class Ecology {
     }
     this.rotRemains(dt, ctx);
     this.runNests(dt, ctx);
+    // Dead bodies are removed rather than retained: keeping every corpse forever made a long run
+    // grow its creature list without bound, and nothing needs a dead body once its remains exist.
+    if (this.creatures.some((c) => !c.alive)) this.creatures = this.creatures.filter((c) => c.alive);
     // Growth bodies relocate on their own schedule; this is what puts a grown creature on the
     // player's return route instead of leaving every threat parked at its nest.
     this.migrationTimer -= dt;
@@ -289,17 +316,20 @@ export class Ecology {
         }
         this.approach(c, t.x, t.y, 80, dt);
         if (Math.hypot(t.x - c.x, t.y - c.y) < 46) {
-          // The role matchup decides the exchange; size only shifts the odds. A hunter that
-          // answers a floater can bring down a far larger body, which is the whole point of the
-          // cycle — a pure size race made the biggest creature on the map effectively immortal
-          // (no apex was ever killed), so the map always ended with an uncontested bully.
+          // Two cycles decide the exchange, and they answer different questions.
+          // Role decides whether this hunt was a sensible idea at all (who eats whom).
+          // Organ archetype decides how the actual fight goes (whose build beats whose), which is
+          // what makes each creature's organs matter to the world and not just to the player.
           const adv = roleAdvantage(c.role, t.role),
             size = c.biomass / Math.max(1, t.biomass);
-          // A predator that has picked this fight at all is usually favoured; the matchup decides
+          const mine = c.organs.dominant(),
+            theirs = t.organs.dominant();
+          const organ = mine && theirs ? matchup(mine, theirs) : 1;
+          // A predator that has picked this fight at all is usually favoured; the matchups decide
           // how lopsided it is. Making the neutral case a coin-flip-or-worse stalled whole seeds,
           // because a healthy colony would stop hunting and the district froze.
-          const winChance =
-            adv > 1 ? 0.8 : adv < 1 ? 0.12 * Math.min(1, size / 2.2) : size > 1.15 ? 0.7 : 0.45;
+          const base = adv > 1 ? 0.8 : adv < 1 ? 0.12 * Math.min(1, size / 2.2) : size > 1.15 ? 0.7 : 0.45;
+          const winChance = Math.max(0.04, Math.min(0.95, base * organ));
           if (this.rng.chance(winChance)) {
             // Killing a creature feeds the killer immediately. A corpse on the ground is not
             // enough on its own: predators would win fight after fight and still never grow,
@@ -313,9 +343,10 @@ export class Ecology {
             c.remainsTarget = null;
             c.intentTime = 0;
           } else {
-            // Losing the exchange costs the attacker real health and breaks off the hunt, so a
-            // body that keeps picking fights above its weight does eventually die of it.
-            c.hp -= 26 * (adv < 1 ? 1.6 : 1);
+            // Losing costs a FRACTION of max health, not a flat amount. A flat cost meant that
+            // charge builds (which stack +max HP organs) survived every lost exchange and came to
+            // dominate creature kills, while fragile chain builds died to the first mistake.
+            c.hp -= c.maxHp * 0.24 * (adv < 1 ? 1.6 : 1);
             if (c.hp <= 0) this.kill(c, t.name, "creature");
             else {
               c.intent = "roam";
@@ -487,9 +518,13 @@ export class Ecology {
     const gain = c.stage === "juvenile" ? 0.35 : c.stage === "mature" ? 0.5 : 0.6;
     for (const [id, n] of Object.entries(r.organs) as [OrganId, number][]) {
       if (c.organs.uniqueCount >= STAGE_ORGAN_CAP[c.stage] && !c.organs.has(id)) continue;
-      if (this.rng.chance(gain))
+      // A body preferentially deepens organs it already has. Without this bias, absorption spread
+      // thinly across every organ on the corpse and stacking the SAME organ was rare — but
+      // "same organ stacks into a stronger one" is a core promise of the design.
+      const deepening = c.organs.has(id) ? Math.min(0.95, gain * 1.8) : gain;
+      if (this.rng.chance(deepening))
         for (let i = 0; i < (n ?? 1); i++)
-          if (this.rng.chance(gain)) {
+          if (this.rng.chance(deepening)) {
             c.organs.add(id);
             absorbed.push(id);
           }

@@ -103,6 +103,8 @@ export interface EcoLogEntry {
 
 export interface EcoMetrics {
   creaturesSpawned: number;
+  /** Total deaths, so callers never need to retain dead bodies just to count them. */
+  deaths: number;
   spawnedByNest: Record<string, number>;
   creatureConsumes: number;
   creatureVsCreatureKills: number;
@@ -112,6 +114,8 @@ export interface EcoMetrics {
   apexKilled: number;
   maxEnemyUniqueOrgans: number;
   maxEnemyOrganLayers: number;
+  /** Bodies that ever held more than one stack of the same organ, across the whole run. */
+  stackedBodies: number;
   maxEnemyBiomass: number;
   peakThreat: number;
   remainsCreated: number;

@@ -171,12 +171,9 @@ export class EnemyCombat {
     const marked = st.mark > 0,
       wasFrozen = st.frozen > 0;
     let dealt = amount * e.damageFactor * this.power(e) * (st.vulnerable > 0 ? 1.2 : 1);
-    // Organ archetype matchup: what this body carries decides what it beats. A player carrying no
-    // organs has no archetype and therefore takes plain damage — the cycle only applies when both
-    // sides have actually committed to one, so an empty build is never secretly punished.
-    const myArchetype = w.playerArchetype(),
-      theirArchetype = e.organs.dominant();
-    if (!indirect && myArchetype && theirArchetype) dealt *= matchup(theirArchetype, myArchetype);
+    // No organ-archetype multiplier against the player: the player cannot choose which archetype
+    // they carry, so this would read as an unpredictable damage tax. The archetype is shown on the
+    // enemy label as intelligence instead; the cycle's real job is deciding creature vs creature.
     if (!indirect && e.count("multi"))
       dealt *= 1 + 0.15 * e.count("multi") * w.armory.units.filter((u) => distance(u, target) < 160).length;
     const before = unit ? unit.hp : w.player.hp + w.shield;

@@ -69,10 +69,12 @@ describe("生态 · 世界自己变危险", () => {
 
   it("吞噬会继承器官，同种器官可叠层", () => {
     const eco = run(7, 1200);
-    const stacked = eco.creatures.filter((c) => c.organs.entries().some(([, n]) => n > 1));
-    expect(stacked.length).toBeGreaterThan(0);
+    // Counted as a run metric: a deeply stacked body is also the one most likely to have died,
+    // so reading the live list would be flaky.
+    expect(eco.metrics.stackedBodies).toBeGreaterThan(0);
     expect(eco.metrics.maxEnemyOrganLayers).toBeGreaterThan(eco.metrics.maxEnemyUniqueOrgans);
     expect(eco.log.some((e) => e.event === "enemy_absorb")).toBe(true);
+    expect(eco.metrics.creatureConsumes).toBeGreaterThan(0);
   });
 
   it("器官层数真正影响战斗属性，成长不等于无脑加血", () => {

@@ -111,14 +111,9 @@ describe("克制链 · 角色生态", () => {
     for (const seed of [1, 7, 42, 99]) {
       const eco = new Ecology(seed);
       for (let t = 0; t < 1200; t += 0.5) eco.update(0.5, { player: null, open: new Set() });
-      const roleOf = new Map(eco.creatures.map((c) => [c.name, c.role]));
-      const pairings = new Set<string>();
-      for (const k of eco.log.filter((e) => e.event === "enemy_killed" && e.detail.includes("(creature)"))) {
-        const m = k.detail.match(/^(\S+) by (\S+)/);
-        if (m) pairings.add(`${roleOf.get(m[2])}→${roleOf.get(m[1])}`);
-      }
+      // Read the pairing tally recorded at kill time; dead bodies are pruned from the list.
       for (const p of ["scavenger→hunter", "hunter→floater", "floater→scavenger"]) {
-        expect(pairings.has(p), `seed ${seed} 缺少相克链 ${p}`).toBe(true);
+        expect(eco.roleKills[p] ?? 0, `seed ${seed} 缺少相克链 ${p}`).toBeGreaterThan(0);
       }
       // 没有任何角色占绝对多数
       const counts = ROLES.map((r) => eco.alive.filter((c) => c.role === r).length);
@@ -141,5 +136,25 @@ describe("克制链 · 角色生态", () => {
       expect(eco.apexes.length, `seed ${seed}`).toBeLessThan(8);
     }
     expect(created).toBeGreaterThan(10);
+  });
+
+  it("器官相性只在生物之间生效，不偷偷改玩家伤害", () => {
+    // The player's archetype is emergent (random drops, unlimited slots), so a damage multiplier
+    // would be an unpredictable tax rather than a decision. This guards against it coming back.
+    const eco = new Ecology(1);
+    const a = eco.alive[0];
+    a.organs.add("freeze", 3);
+    a.organs.add("shatter", 1);
+    expect(a.organs.dominant()).toBe("suppress");
+  });
+
+  it("生物之间的胜负会记录赢家的相性（器官在生态里真的有用）", () => {
+    const eco = new Ecology(1);
+    for (let t = 0; t < 1200; t += 0.5) eco.update(0.5, { player: null, open: new Set() });
+    const total = Object.values(eco.archetypeKills).reduce((s, v) => s + v, 0);
+    expect(total).toBeGreaterThan(50);
+    // Every archetype must win some fights, so none of them is dead weight.
+    for (const a of ARCHETYPE_CYCLE)
+      expect(eco.archetypeKills[a] ?? 0, `相性 ${a} 从未获胜`).toBeGreaterThan(5);
   });
 });

@@ -67,20 +67,13 @@ const evolved = eco.log.filter((e) => e.event === "enemy_evolve").slice(-10);
 const apexLog = eco.log.filter((e) => e.event === "apex_created").map((e) => e.detail);
 const absorbs = eco.log.filter((e) => e.event === "enemy_absorb");
 const invalid = [snap.threat, snap.biomass, snap.maxBiomass].filter((v) => !Number.isFinite(v));
-// Role-cycle health: which roles kill which. A working cycle shows all three pairings occurring,
-// and no single role permanently owning the map.
-const kills = eco.log.filter((e) => e.event === "enemy_killed" && e.detail.includes("(creature)"));
-const roleOf = new Map(eco.creatures.map((c) => [c.name, c.role]));
-const pairings = {};
-for (const k of kills) {
-  const m = k.detail.match(/^(\S+) by (\S+)/);
-  if (!m) continue;
-  const key = `${roleOf.get(m[2]) ?? "?"}→${roleOf.get(m[1]) ?? "?"}`;
-  pairings[key] = (pairings[key] ?? 0) + 1;
-}
+// Role-cycle health: which roles kill which. Recorded at kill time, because dead bodies are pruned.
+const pairings = { ...eco.roleKills };
 const aliveByRole = { scavenger: 0, hunter: 0, floater: 0 };
 for (const c of eco.alive) aliveByRole[c.role]++;
 const apexRoles = eco.alive.filter((c) => c.isApex).map((c) => `${c.name}:${c.role}`);
+// Organ-cycle health: which archetypes actually win fights, tallied inside the ecology itself.
+const archetypeKills = { ...eco.archetypeKills };
 
 console.log(
   JSON.stringify(
@@ -91,7 +84,7 @@ console.log(
       summary: {
         spawned: eco.metrics.creaturesSpawned,
         alive: snap.alive,
-        killed: eco.creatures.filter((c) => !c.alive).length,
+        killed: eco.metrics.deaths,
         consumes: eco.metrics.creatureConsumes,
         creatureVsCreatureKills: eco.metrics.creatureVsCreatureKills,
         starvationDeaths: eco.metrics.starvationDeaths,
@@ -137,6 +130,8 @@ console.log(
         pairings,
         aliveByRole,
         apexRoles,
+        stackedBodies: eco.metrics.stackedBodies,
+        archetypeKills,
         allThreePairingsPresent: ["scavenger→hunter", "hunter→floater", "floater→scavenger"].every(
           (k) => (pairings[k] ?? 0) > 0,
         ),

@@ -657,10 +657,11 @@ export class SliceWorld extends World {
     this.ascent?.awakened.add(e.id);
     e.aggro = 5;
     amount = this.hostile.defend(e, amount);
-    // Organ archetype matchup: the player's dominant archetype versus this body's.
-    const mine = this.playerArchetype(),
-      theirs = e.organs.dominant();
-    if (mine && theirs) amount *= matchup(mine, theirs);
+    // Organ archetypes are NOT applied to player damage. Which archetype the player carries is
+    // emergent — organs drop at random and slots are unlimited — so a 1.5x/0.7x swing would be an
+    // unpredictable tax rather than a decision. The player reads the archetype as intelligence
+    // ("this one is a suppression type, don't brawl it"), while the cycle itself does its real
+    // work between creatures, where it is what stops one body from owning the map.
     const marked = e.mark > 0;
     if (direct) amount *= this.power() * this.juice.executeScale(e.hp, e.maxHp);
     if (e.vulnerable > 0) amount *= 1 + e.vulnerability;

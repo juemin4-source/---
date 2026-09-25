@@ -499,20 +499,19 @@ export class SliceScene extends Phaser.Scene {
         g.lineStyle(2, c, 0.7);
         g.lineBetween(e.x + 15, e.y - 8, e.x + 24, e.y - 17);
         const arche = e.organs.dominant();
-        const mine = w.playerArchetype();
-        // Show the matchup on the label itself: the player must be able to see which bodies they
-        // beat and which ones beat them, or the counter cycle may as well not exist.
-        const swing = arche && mine ? matchup(mine, arche) : 1;
+        // The archetype is intelligence, not a damage modifier: it tells the player what kind of
+        // threat this body is before they commit. No 克制/被克 tag, because the player's own
+        // archetype is emergent and they cannot act on it.
         this.art.label(
           `carrier-${e.id}`,
           e.x - 49,
           e.y - e.h / 2 - 28,
-          `${arche ? ARCHETYPES[arche].name : "无相性"}${swing > 1 ? " ▼克制" : swing < 1 ? " ▲被克" : ""} · ` +
+          `${arche ? ARCHETYPES[arche].name : "无相性"} · ` +
             e.organs
               .entries()
               .map(([id, n]) => organs[id].name + (n > 1 ? `×${n}` : ""))
               .join(" "),
-          swing > 1 ? "#ffd27d" : swing < 1 ? "#ff8f9b" : o.color,
+          arche ? ARCHETYPES[arche].color : o.color,
           13,
         );
         const ek = w.hostile.kit(e);
