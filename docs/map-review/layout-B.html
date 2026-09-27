@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="zh-CN">
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width,initial-scale=1" /><title>
+    永蚀 · 灰盒剖面 B · 待审核</title
+  ><style>
+    body {
+      margin: 0;
+      background: #111b24;
+      color: #dce6eb;
+      font:
+        16px "Microsoft YaHei",
+        sans-serif;
+    }
+    header {
+      position: sticky;
+      top: 0;
+      padding: 14px 20px;
+      background: #111b24f5;
+      border-bottom: 1px solid #526b79;
+      z-index: 2;
+    }
+    button {
+      padding: 10px 18px;
+      margin: 4px;
+      background: #293e4b;
+      color: #dce6eb;
+      border: 1px solid #526b79;
+      cursor: pointer;
+    }
+    button.active {
+      background: #dfc37b;
+      color: #17212a;
+    }
+    main {
+      overflow: auto;
+    }
+    img {
+      display: block;
+      width: 100%;
+      min-width: 960px;
+    }
+    p {
+      margin: 4px 0 10px;
+      color: #a9bdc8;
+    }
+  </style>
+  <header>
+    <p>灰盒剖面 B · 只供地图审核，未接入游戏　｜　选择总图或房间放大图</p>
+    <button class="tab active" onclick="show(this, 'section-B.svg')">总剖面</button
+    ><button class="tab" onclick="show(this, 'room-entry-B.svg')">① 跑跳与首战</button
+    ><button class="tab" onclick="show(this, 'room-ecology-B.svg')">② 可观察生态</button
+    ><button class="tab" onclick="show(this, 'room-cargo-B.svg')">③ 重货回程</button
+    ><button onclick="document.querySelector('img').style.width = '1600px'">原尺寸</button
+    ><button onclick="document.querySelector('img').style.width = '100%'">适应窗口</button>
+  </header>
+  <main><img src="section-B.svg" alt="固定地图灰盒剖面 B" /></main>
+  <script>
+    window.show = function (b, f) {
+      document.querySelector("img").src = f;
+      document.querySelectorAll(".tab").forEach((x) => x.classList.remove("active"));
+      b.classList.add("active");
+      window.scrollTo(0, 0);
+    };
+  </script>
+</html>
