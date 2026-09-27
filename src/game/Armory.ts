@@ -66,12 +66,12 @@ export class Armory {
     angle = this.w.player.aim,
   ) {
     const w = this.w,
-      powered = heavy && w.count("discharge") > 0 && w.energy > 0;
+      powered = heavy && w.effectCount("discharge") > 0 && w.energy > 0;
     // Committing to an attack cancels an in-progress search, so you cannot search and fight at once.
     w.noteAttack();
     if (powered) {
       w.energy--;
-      damage += 32 * w.count("discharge");
+      damage += 32 * w.effectCount("discharge");
     }
     const b = new Projectile(
       x + Math.cos(angle) * 19,
@@ -95,10 +95,10 @@ export class Armory {
     w.noteAttack();
     this.swing = { radius: w.attackRange(radius), life: 0.2, angle: p.aim, heavy };
     let powered = false;
-    if (heavy && w.count("discharge") && w.energy > 0) {
+    if (heavy && w.effectCount("discharge") && w.energy > 0) {
       w.energy--;
       powered = true;
-      damage += 32 * w.count("discharge");
+      damage += 32 * w.effectCount("discharge");
     }
     const targets = w.enemies.filter(
       (e) =>
@@ -106,14 +106,21 @@ export class Armory {
         distance(e, p) < w.attackRange(radius) + e.w / 2 &&
         (e.x - p.x) * Math.cos(p.aim) + (e.y - p.y) * Math.sin(p.aim) > -22,
     );
-    const multi = 1 + Math.max(0, targets.length - 1) * 0.15 * w.count("multi");
+    const multi = 1 + Math.max(0, targets.length - 1) * 0.15 * w.effectCount("multi");
     for (const e of targets) {
       w.hit(e, damage * multi, true, Math.sign(e.x - p.x || p.facing) * (heavy ? 380 : 95), heavy);
       if (heavy) w.stunEnemy(e, e.kind === "elite" ? 0.25 : 0.75);
     }
     if (powered && targets.length) {
       w.metrics.chargedHits++;
-      w.blast(targets[0].x, targets[0].y, 35 * w.count("discharge"), w.attackRange(140), 260, targets[0]);
+      w.blast(
+        targets[0].x,
+        targets[0].y,
+        35 * w.effectCount("discharge"),
+        w.attackRange(140),
+        260,
+        targets[0],
+      );
     }
     w.metrics.shots++;
     w.emit("melee", p.x, p.y, heavy ? 0xedb76c : 0xe8edd0, p.aim);

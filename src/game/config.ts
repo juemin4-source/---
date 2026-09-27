@@ -2,6 +2,19 @@ import type { EnemyKind } from "../engine/Enemy";
 import type { Rect } from "../engine/PhysicsHelpers";
 
 export const organs = {
+  vitality: {
+    name: "厚生组织",
+    tag: "生命 +20",
+    color: "#9cd8cb",
+    description: "每层增加 20 最大生命，首次吸收该层同时补上增加的生命；丢弃再捡不重复治疗。",
+  },
+  armor: {
+    name: "复合甲壳",
+    tag: "护甲 +12",
+    color: "#91d5f1",
+    description:
+      "每层提供 12 护甲。承受伤害乘以 100 /（100 + 护甲）；1 层减伤约 11%，5 层约 38%，不会免疫伤害。",
+  },
   ram: {
     name: "冲撞腺",
     tag: "动作改造",

@@ -61,7 +61,7 @@ describe("敌人攻击、武器和成长", () => {
   it("无限训练能装超过六种、选择敌人武器与副武器", () => {
     const w = new SliceWorld(false, 1, true, false, true);
     for (const o of organIds) w.grant(o);
-    expect(w.slots).toHaveLength(28);
+    expect(w.slots).toHaveLength(organIds.length);
     w.enemies = [];
     w.trainingWeapon = "sniper";
     w.trainingSecondary = "drone";

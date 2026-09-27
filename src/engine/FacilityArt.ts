@@ -6,6 +6,13 @@ type Graphics = Phaser.GameObjects.Graphics;
 export function facilityPlatform(g: Graphics, r: Rect) {
   const x = r.x - r.w / 2,
     y = r.y - r.h / 2;
+  if (r.h > 28 && !r.oneWay) {
+    g.fillStyle(0x080f17);
+    g.fillRect(x, y, r.w, r.h);
+    g.lineStyle(2, 0x293946);
+    g.strokeRect(x + 1, y + 1, Math.max(0, r.w - 2), Math.max(0, r.h - 2));
+    return;
+  }
   const h = Math.min(22, r.h);
   g.fillStyle(0x0a1520);
   g.fillRect(x, y, r.w, r.h);

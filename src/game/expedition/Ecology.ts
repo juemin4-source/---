@@ -1,3 +1,4 @@
+import { residentGroups } from "./ExpeditionResidents";
 import { SeededRandom } from "./SeededRandom";
 import { canHunt, matchup, roleAdvantage, roleCounteredBy } from "./Counters";
 import { OrganLoadout } from "../OrganLoadout";
@@ -23,6 +24,8 @@ export interface EcoContext {
   player: { x: number; y: number; district: DistrictId } | null;
   /** Opened locks: shortcuts, freight power, valves. */
   open: ReadonlySet<string>;
+  /** These bodies belong to real combat/physics, never abstract predation or movement. */
+  materialized?: ReadonlySet<number>;
 }
 export interface NoiseEvent {
   x: number;
@@ -108,15 +111,25 @@ export class Ecology {
       this.spawn(n, "scavenger");
       this.spawn(n);
     }
-    // Roamers: bodies not bound to any nest. Nests only exist in five districts, so without these
-    // the starting airlock and several other districts are permanently empty and the world reads as
-    // dead exactly where the player first looks. Their roles are dealt round-robin rather than
-    // rolled, so seeding them cannot tip the role cycle toward whichever role is rolled luckiest.
-    let seedRole = 0;
-    const seededRoles: Role[] = ["scavenger", "hunter", "floater"];
-    for (const d of districts) {
-      const here = this.creatures.filter((c) => c.alive && c.district === d.id).length;
-      for (let i = here; i < 2; i++) this.spawnRoamer(d.id, seededRoles[seedRole++ % seededRoles.length]);
+    for (const r of residentGroups) {
+      const c = this.spawnRoamer(r.district, r.role)!;
+      c.x = r.x;
+      c.y = r.y;
+      c.anchorX = r.x;
+      c.organs = new OrganLoadout({ [r.organ]: 1 });
+      this.refreshStats(c);
+    }
+    // Real starting wrecks: edible resources with provenance, never a scripted evolution.
+    for (const x of [2460, 2750]) {
+      const source = this.creatures.find((c) => c.home === "nest-rot")!;
+      const r = this.createRemains(source);
+      r.x = x;
+      r.y = 2262;
+      r.sourceId = -r.id;
+      r.sourceName = "报废维修机";
+      r.ttl = 240;
+      r.biomass = 5;
+      r.organs = { battery: 1 };
     }
   }
 
@@ -159,6 +172,7 @@ export class Ecology {
     c.name = `${c.kind}-${String(c.id).padStart(2, "0")}`;
     c.organs.add(this.rng.pick(def.organPool), 1);
     if (stage !== "juvenile") c.organs.add(this.rng.pick(def.organPool), 1);
+    c.anchorX = c.x;
     this.creatures.push(c);
     this.nextCreature++;
     this.refreshStats(c);
@@ -206,6 +220,7 @@ export class Ecology {
     // Juveniles are weak but never empty-handed: one organ from the nest's pool.
     c.organs.add(this.rng.pick(def.organPool), 1);
     if (stage !== "juvenile") c.organs.add(this.rng.pick(def.organPool), 1);
+    c.anchorX = c.x;
     this.creatures.push(c);
     this.nextCreature++;
     this.refreshStats(c);
@@ -219,14 +234,19 @@ export class Ecology {
   /** Derived combat stats. Recomputed whenever stage or organs change; never scaled by elapsed time. */
   refreshStats(c: EcoCreature) {
     const layers = c.organs.totalLayers;
-    // Only nest-born bodies grow up. Roamers exist so the map is never empty where the player
-    // starts, but an apex must be a real individual with a lineage — letting a wanderer top the
-    // food chain would break that, and the apex record says where it came from.
-    const stage: Stage = c.home.startsWith("nest-") ? stageOf(c.biomass) : "juvenile";
+    const stage: Stage = stageOf(c.biomass);
     if (stage !== c.stage) this.evolve(c, stage);
-    c.maxHp = Math.round(BASE_HP[c.kind] * STAGE_HP[c.stage] * (1 + 0.04 * layers));
-    c.hp = Math.min(c.maxHp, Math.max(1, c.hp));
-    if (c.hp <= 1) c.hp = c.maxHp;
+    const initializing = c.maxHp === 0;
+    c.maxHp = Math.max(
+      10,
+      Math.round(
+        (BASE_HP[c.kind] * STAGE_HP[c.stage] * (1 + 0.04 * layers) +
+          20 * c.organs.count("vitality") +
+          10 * c.organs.count("leech")) *
+          0.7 ** c.organs.count("glass"),
+      ),
+    );
+    c.hp = initializing ? c.maxHp : Math.min(c.maxHp, Math.max(0, c.hp));
     this.metrics.maxEnemyUniqueOrgans = Math.max(this.metrics.maxEnemyUniqueOrgans, c.organs.uniqueCount);
     this.metrics.maxEnemyOrganLayers = Math.max(this.metrics.maxEnemyOrganLayers, c.organs.totalLayers);
     // Bodies that ever stacked the same organ, counted over the whole run: reading it off the
@@ -318,18 +338,25 @@ export class Ecology {
     }
   }
 
-  /** One low-frequency ecology tick. Identical whether the player is nearby or far away. */
+  /** Low-frequency far-field simulation; materialized bodies remain owned by combat/physics. */
   step(dt: number, ctx: EcoContext) {
     const live = this.creatures.filter((c) => c.alive);
     for (const c of live) {
+      if (!c.alive) continue;
       const player = ctx.player;
       c.near =
         !!player &&
         Math.hypot(c.x - player.x, c.y - player.y) < NEAR_RADIUS &&
         c.district === player.district;
       c.hunger = Math.min(2.5, c.hunger + dt * 0.012);
+      if (ctx.materialized?.has(c.id)) continue;
       if (c.intentTime > 0) c.intentTime -= dt;
-      this.think(c, dt, ctx, live);
+      this.think(
+        c,
+        dt,
+        ctx,
+        live.filter((o) => !ctx.materialized?.has(o.id)),
+      );
     }
     this.rotRemains(dt, ctx);
     this.runNests(dt, ctx);
@@ -345,6 +372,56 @@ export class Ecology {
     }
   }
   private migrationTimer = 12;
+
+  /** Tick a physical body's non-combat intent. Returns a horizontal steering target. */
+  physicalIntent(
+    c: EcoCreature,
+    dt: number,
+    fighting: boolean,
+    reachable: (r: Remains) => boolean = () => true,
+  ): number | null {
+    if (!c.alive) return null;
+    if (fighting) {
+      const meal = this.remains.find((r) => r.id === c.remainsTarget);
+      if (meal?.claimed === c.id) delete meal.claimed;
+      c.remainsTarget = null;
+      c.intent = "fightPlayer";
+      c.intentTime = 0;
+      return null;
+    }
+    if (c.intent === "fightPlayer" || c.intent === "fightCreature") {
+      c.intent = "patrol";
+      c.target = null;
+    }
+    const meal = this.nearestRemains(c, reachable);
+    if (meal && (c.role === "scavenger" || c.hunger > 0.55)) {
+      if (Math.hypot(meal.x - c.x, meal.y - c.y) > 65) {
+        c.intent = "seekRemains";
+        c.remainsTarget = meal.id;
+        c.intentTime = 0;
+        return meal.x;
+      }
+      if (c.intent !== "consume" || c.remainsTarget !== meal.id) {
+        c.intent = "consume";
+        c.remainsTarget = meal.id;
+        meal.claimed = c.id;
+        c.intentTime = 1.6 + Math.min(4, meal.biomass * 0.12);
+        this.record("consume_start", `${c.name} → remains ${meal.id}`);
+      }
+      c.intentTime -= dt;
+      if (c.intentTime <= 0) this.finishConsume(c, meal);
+      return c.x;
+    }
+    if (c.intent === "investigate" && c.target !== null) {
+      if (Math.abs(c.x - c.target) > 30) return c.target;
+      c.intent = "patrol";
+      c.target = null;
+    }
+    // Materialized bodies are excluded from the abstract tick, so they must also patrol here.
+    // A stable anchor prevents every idle creature converging on the same doorway.
+    c.intent = "patrol";
+    return (c.anchorX ?? c.x) + Math.sin(this.time * 0.18 + c.id * 1.7) * 110;
+  }
 
   private think(c: EcoCreature, dt: number, ctx: EcoContext, live: EcoCreature[]) {
     const player = ctx.player;
@@ -364,7 +441,7 @@ export class Ecology {
       // `intentTime` is this hunt's remaining patience. A flat per-tick chance of giving up was
       // wrong: nests in one district sit hundreds of pixels apart, so crossing that gap takes many
       // ticks and almost every hunt aborted before contact — which stalled entire seeds.
-      if (!t || c.intentTime <= 0) {
+      if (!t || !t.alive || c.intentTime <= 0) {
         c.intent = "roam";
         c.target = null;
       } else {
@@ -511,14 +588,17 @@ export class Ecology {
     }
     const anchorX = c.role === "floater" ? c.x : c.homeDistrict === home.id ? c.x : c.x;
     void anchorX;
-    if (Math.abs(c.x - this.nestX(c.home)) > leash) this.approach(c, this.nestX(c.home), c.y, 46, dt);
+    if (Math.abs(c.x - (c.anchorX ?? this.nestX(c.home))) > leash)
+      this.approach(c, c.anchorX ?? this.nestX(c.home), c.y, 46, dt);
     else if (this.rng.chance(0.5)) {
       c.intent = "roam";
       c.x += this.rng.range(-40, 40);
-      c.x = Math.max(home.x + 40, Math.min(home.x + home.w - 40, c.x));
+      c.x = Math.max(
+        Math.max(home.x + 40, (c.anchorX ?? c.x) - 180),
+        Math.min(Math.min(home.x + home.w - 40, (c.anchorX ?? c.x) + 180), c.x),
+      );
     }
-    if (c.role === "floater") c.y = home.floor - 90 - 40 * Math.sin(this.time * 0.4 + c.id);
-    else c.y = home.floor - 24;
+    // Idle bodies retain their actual elevation until movement or physics changes it.
     // Starvation is a brake on runaway growth, not the main cause of death: it only removes
     // bodies that never found a single meal, and the district population cap does the real work.
     if (c.hunger > 2.0) {
@@ -553,11 +633,12 @@ export class Ecology {
     c.y += (dy / d) * step * 0.6;
   }
 
-  private nearestRemains(c: EcoCreature) {
+  private nearestRemains(c: EcoCreature, reachable: (r: Remains) => boolean = () => true) {
     return this.remains
       .filter(
         (r) =>
           r.district === c.district &&
+          reachable(r) &&
           // A stale claim from a body that died or moved on must not lock a corpse forever.
           (r.claimed === undefined ||
             r.claimed === c.id ||
@@ -590,6 +671,16 @@ export class Ecology {
             c.organs.add(id);
             absorbed.push(id);
           }
+    }
+    if (!absorbed.length) {
+      const eligible = (Object.keys(r.organs) as OrganId[]).filter(
+        (id) => c.organs.has(id) || c.organs.uniqueCount < STAGE_ORGAN_CAP[c.stage],
+      );
+      if (eligible.length) {
+        const id = this.rng.pick(eligible);
+        c.organs.add(id);
+        absorbed.push(id);
+      }
     }
     this.remains = this.remains.filter((o) => o !== r);
     this.record(
@@ -644,11 +735,16 @@ export class Ecology {
       if (n.spawnTimer > 0) continue;
       const districtPop = this.creatures.filter((c) => c.alive && c.district === n.district).length;
       const cap = DISTRICT_POP_CAP + (n.state === "swollen" ? 2 : 0);
-      const base = n.state === "dormant" ? 14 : 9;
+      const base = districtPop < 3 ? 14 : n.state === "dormant" ? 32 : 24;
       // A nearby player suppresses breeding: nests do not respawn into an active fight.
       const suppressed = ctx.player && ctx.player.district === n.district ? 1.6 : 1;
       n.spawnTimer = base * suppressed * this.rng.range(0.85, 1.2);
       if (districtPop >= cap) continue;
+      if (
+        ctx.player &&
+        Math.hypot(ctx.player.x - n.x, ctx.player.y - (districtById[n.district].floor - 36)) < 280
+      )
+        continue;
       // What a nest breeds responds to what is eating it. If this colony is being hunted by its
       // counter, it leans toward the role that counters that hunter — this feedback is what keeps
       // the cycle circulating instead of letting one role take the district permanently.
@@ -734,7 +830,8 @@ export class Ecology {
   maybeMigrate(ctx: EcoContext) {
     let moved = 0;
     for (const c of this.creatures) {
-      if (!c.alive || c.stage === "juvenile" || c.intent === "migrate") continue;
+      if (!c.alive || ctx.materialized?.has(c.id) || c.stage === "juvenile" || c.intent === "migrate")
+        continue;
       if (!this.rng.chance(0.08)) continue;
       const target = this.rng.pick(districts.filter((d) => d.id !== c.district));
       if (this.startMigration(c, target.id, c.stage === "apex" ? "扩张领地" : "追踪食物", ctx)) moved++;
@@ -760,10 +857,10 @@ export class Ecology {
     // Diminishing returns, then a soft saturation: Threat must keep rising through a run but never
     // sit pinned at the maximum, or it stops telling the player anything about the world.
     const raw =
-      Math.sqrt(Math.max(0, biomass)) / 6 +
+      Math.sqrt(Math.max(0, biomass)) / 20 +
       this.matured.length * 0.4 +
       this.apexes.length * 1.2 +
-      Math.sqrt(layers) / 5 +
+      Math.sqrt(layers) / 18 +
       this.activeNests * 0.2;
     return Math.max(0, Math.min(5, 5 * (1 - Math.exp(-raw / 3))));
   }

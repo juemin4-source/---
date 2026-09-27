@@ -23,6 +23,15 @@ export interface LootDef {
  * `weight`/`size` are what make the cargo decision real — everything valuable is also a burden.
  */
 export const lootDefs: Record<string, LootDef> = {
+  maintenanceBook: {
+    id: "maintenanceBook",
+    name: "泵站维修手册",
+    category: "supply",
+    value: 35,
+    weight: 1,
+    size: 1,
+    note: "旧设施的具体技术资料；带出结算",
+  },
   sludgeSample: {
     id: "sludgeSample",
     name: "淤积样本",
@@ -57,7 +66,7 @@ export const lootDefs: Record<string, LootDef> = {
     value: 85,
     weight: 1,
     size: 1,
-    note: "永久解锁，不必带出",
+    note: "带出后结算为研究价值",
   },
   neuralSample: {
     id: "neuralSample",

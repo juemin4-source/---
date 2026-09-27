@@ -23,6 +23,8 @@ export const ARCHETYPES: Record<Archetype, { name: string; color: string; blurb:
 
 /** Every organ belongs to exactly one archetype. Adding organ #29 means adding it here too. */
 export const organArchetype: Record<OrganId, Archetype> = {
+  vitality: "charge",
+  armor: "charge",
   // 蓄势：积累、护盾、回复
   battery: "charge",
   discharge: "charge",

@@ -2,6 +2,7 @@ const bindings: Record<string, string> = {
   KeyA: "A",
   KeyD: "D",
   KeyS: "S",
+  KeyW: "W",
   Space: "SPACE",
   ShiftLeft: "SHIFT",
   ShiftRight: "SHIFT",

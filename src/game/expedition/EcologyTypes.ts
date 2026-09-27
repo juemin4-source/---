@@ -31,6 +31,7 @@ export interface EcoCreature {
   y: number;
   district: DistrictId;
   home: string;
+  anchorX?: number;
   homeDistrict: DistrictId;
   organs: OrganLoadout;
   intent: Intent;

@@ -251,9 +251,22 @@ export class SliceWorld extends World {
       const d = districts.find((x) => x.id === district)!;
       const e = new Carrier(c.kind, c.x, d.floor, c.organs.toJSON(), 1);
       // y is then corrected to rest the body on the floor surface.
-      e.y = d.floor - e.h / 2;
+      e.y = Math.min(c.y, d.floor - 12 - e.h / 2);
+      // Abstract wanderers must re-enter in traversable space, not inside a room partition.
+      const valid = (x: number) => !this.platforms.some((r) => !r.oneWay && overlaps({ ...e, x }, r));
+      if (!valid(e.x)) {
+        const origin = e.x;
+        for (let offset = 16; offset <= 800; offset += 16) {
+          const x = [origin - offset, origin + offset].find((x) => x > 40 && x < this.width - 40 && valid(x));
+          if (x !== undefined) {
+            e.x = x;
+            break;
+          }
+        }
+      }
       e.homeY = e.y;
-      e.hp = e.maxHp = c.hp;
+      e.hp = c.hp;
+      e.maxHp = c.maxHp;
       e.boundsWidth = this.width;
       e.weapon = c.weapon;
       e.secondary = c.secondary;
@@ -276,6 +289,11 @@ export class SliceWorld extends World {
   count(id: OrganId) {
     return this.has(id) ? (this.stackCounts[id] ?? 1) : 0;
   }
+  /** Stack counts stay integral for inventory; combat gains have diminishing returns in exploration. */
+  effectCount(id: OrganId) {
+    const n = this.count(id);
+    return this.expedition && n > 2 ? 2 + Math.log2(n - 1) : n;
+  }
   /** The player's dominant organ archetype, or null when carrying nothing. */
   playerArchetype(): Archetype | null {
     const totals: Record<Archetype, number> = { charge: 0, chain: 0, suppress: 0 };
@@ -284,7 +302,7 @@ export class SliceWorld extends World {
     return totals[best] > 0 ? best : null;
   }
   speedFactor() {
-    return (1 + 0.25 * this.count("speed") + 0.4 * this.count("glass")) * this.juice.speed;
+    return (1 + 0.25 * this.effectCount("speed") + 0.4 * this.effectCount("glass")) * this.juice.speed;
   }
   get energyMax() {
     return 3 + Math.max(0, this.count("battery") - 1) * 2;
@@ -296,17 +314,17 @@ export class SliceWorld extends World {
     return (
       base *
       (1 +
-        (this.stamina >= 95 ? 0.3 * this.count("fullRange") : 0) +
-        (!this.player.grounded ? 0.2 * this.count("airPower") : 0))
+        (this.stamina >= 95 ? 0.3 * this.effectCount("fullRange") : 0) +
+        (!this.player.grounded ? 0.2 * this.effectCount("airPower") : 0))
     );
   }
   power() {
     return (
       (1 +
-        (this.heat >= 60 ? 0.35 * this.count("hot") : 0) +
-        (this.shield > 0 ? 0.5 * this.count("shieldBurst") : 0) +
-        (1 - this.player.hp / this.player.maxHp) * 0.8 * this.count("rage") +
-        (!this.player.grounded ? 0.3 * this.count("airPower") : 0)) *
+        (this.heat >= 60 ? 0.35 * this.effectCount("hot") : 0) +
+        (this.shield > 0 ? 0.5 * this.effectCount("shieldBurst") : 0) +
+        (1 - this.player.hp / this.player.maxHp) * 0.8 * this.effectCount("rage") +
+        (!this.player.grounded ? 0.3 * this.effectCount("airPower") : 0)) *
       this.juice.power
     );
   }
@@ -314,7 +332,7 @@ export class SliceWorld extends World {
     return Math.floor(this.collectedLayers / 6);
   }
   get naturalMaxHp() {
-    return 100 + 20 * this.vitalityLevel + 10 * this.count("leech");
+    return 100 + 20 * this.vitalityLevel + 10 * this.count("leech") + 20 * this.count("vitality");
   }
   syncStats(growth = 0) {
     const oldMax = this.player.maxHp;
@@ -539,7 +557,9 @@ export class SliceWorld extends World {
       return {
         type: "drop" as const,
         drop: expDrop,
-        label: `E 查看 / 接入「${organs[expDrop.organ].name}」`,
+        label: this.unlimited
+          ? `靠近自动接入「${organs[expDrop.organ].name}」`
+          : `E 查看 / 接入「${organs[expDrop.organ].name}」`,
       };
     return null;
   }
@@ -647,13 +667,21 @@ export class SliceWorld extends World {
     this.emit("phase", this.player.x, this.player.y);
     return true;
   }
+  canReachDrop(d: Drop) {
+    // A floor contact at the endpoint is not an obstacle between the player and loot.
+    return !this.platforms.some((r) => {
+      const hit = rayRect(this.player.x, this.player.y, d.x - this.player.x, d.y - this.player.y, r);
+      return hit !== null && hit < 0.999;
+    });
+  }
   autoCollect() {
     if (this.result || this.dead || this.pendingDrop) return;
     for (const d of [...this.drops]) {
       if (
         !(this.unlimited || this.has(d.organ)) ||
+        this.expedition?.banned.has(d.organ) ||
         distance(d, this.player) > 48 ||
-        !this.canSee(this.player, d)
+        !this.canReachDrop(d)
       )
         continue;
       this.pendingDrop = d;
@@ -703,6 +731,7 @@ export class SliceWorld extends World {
       }
       amount *= 0.4;
     }
+    amount /= 1 + 0.12 * this.count("armor");
     if (this.shield > 0) {
       const absorbed = Math.min(this.shield, amount);
       this.shield -= absorbed;
@@ -803,6 +832,7 @@ export class SliceWorld extends World {
       // A creature killed by the player becomes food for the ecosystem: the player's own kills
       // are what feeds the world's growth, which is the core 搜打撤 feedback loop.
       const ecoId = this.ecoIds.get(e);
+      const salvage = this.expedition ? this.expedition.salvage(e, ecoId) : e.organs.entries();
       if (ecoId !== undefined && this.expedition) this.expedition.onEnemyKilled(e, ecoId);
       const elite = e.kind === "elite";
       this.juice.kill(elite);
@@ -823,8 +853,10 @@ export class SliceWorld extends World {
       this.player.dashCooldown = Math.min(this.player.dashCooldown, 0.12);
       this.cargo += e.kind === "elite" ? 180 : 10 + this.zone.risk * 5;
       // Every organ the body actually carried drops, with its stacks: the loot is the real build.
-      for (const [i, [organ, stacks]] of e.organs.entries().entries()) {
-        const matching = this.drops.find((d) => d.organ === organ && Math.abs(d.x - e.x) < 110);
+      for (const [i, [organ, stacks]] of salvage.entries()) {
+        const matching = this.drops.find(
+          (d) => d.organ === organ && Math.abs(d.x - e.x) < 110 && Math.abs(d.y - e.y) < 80,
+        );
         if (matching) {
           matching.growth = (matching.growth ?? matching.stacks ?? 1) + stacks;
           matching.stacks = (matching.stacks ?? 1) + stacks;
@@ -837,14 +869,14 @@ export class SliceWorld extends World {
             y: this.ascent
               ? this.ascent.ground(e.x, e.y) - 24
               : this.expedition
-                ? (surfaceUnder(this.platforms, e.x, e.y) ?? e.y)
+                ? (surfaceUnder(this.platforms, e.x, e.y) ?? e.y) - 18
                 : 585,
             organ,
             stacks: stacks > 1 ? stacks : undefined,
           });
       }
       if (this.drops.length > 84) this.drops.shift();
-      if (this.has("leech")) this.recover(5 * this.count("leech"));
+      if (this.has("leech")) this.recover(5 * this.effectCount("leech"));
       if (!this.player.grounded && this.count("airJump"))
         this.airJumps = Math.min(this.count("airJump"), this.airJumps + 1);
       if (this.has("spread") && e.mark > 0) {
@@ -865,7 +897,13 @@ export class SliceWorld extends World {
         if (!other.dead && other !== e && other.mark > 0 && distance(e, other) < 320) {
           this.metrics.transmissions++;
           this.beams.push({ x: e.x, y: e.y, tx: other.x, ty: other.y, life: 0.22 });
-          this.hit(other, amount * (0.6 + 0.3 * (this.count("conduit") - 1)));
+          this.hit(
+            other,
+            amount *
+              (this.expedition
+                ? Math.min(0.85, 0.6 + 0.08 * (this.effectCount("conduit") - 1))
+                : 0.6 + 0.3 * (this.count("conduit") - 1)),
+          );
         }
     }
     if (heavy) {
@@ -873,11 +911,11 @@ export class SliceWorld extends World {
         e.mark = 0;
         this.heat = Math.max(0, this.heat - 25 * this.count("vent"));
       }
-      if (this.count("vulnerable")) {
+      if (this.effectCount("vulnerable")) {
         e.vulnerable = 4;
-        e.vulnerability = 0.2 * this.count("vulnerable");
+        e.vulnerability = 0.2 * this.effectCount("vulnerable");
       }
-      if (this.count("shatter") && e.frozen > 0) {
+      if (this.effectCount("shatter") && e.frozen > 0) {
         e.frozen = 0;
         e.stun = 0;
         this.metrics.shatters++;
@@ -885,17 +923,17 @@ export class SliceWorld extends World {
         this.blast(
           e.x,
           e.y,
-          45 * this.count("shatter"),
-          this.attackRange(170 + 30 * (this.count("shatter") - 1)),
+          45 * this.effectCount("shatter"),
+          this.attackRange(170 + 30 * (this.effectCount("shatter") - 1)),
           180,
         );
       }
-      if (this.count("heavyArea"))
+      if (this.effectCount("heavyArea"))
         this.blast(
           e.x,
           e.y,
-          amount * (0.35 + 0.15 * (this.count("heavyArea") - 1)),
-          this.attackRange(105 + 35 * this.count("heavyArea")),
+          amount * (0.35 + 0.15 * (this.effectCount("heavyArea") - 1)),
+          this.attackRange(105 + 35 * this.effectCount("heavyArea")),
           120,
           e,
         );
@@ -921,8 +959,14 @@ export class SliceWorld extends World {
     this.juice.beat("blast", x, y, 0xedb76c);
     this.areaFlashes.push({ x, y, radius: Math.min(1800, radius), life: 0.32 });
     if (this.areaFlashes.length > 40) this.areaFlashes.shift();
-    const targets = this.enemies.filter((e) => !e.dead && e !== except && distance(e, { x, y }) < radius);
-    const multi = 1 + Math.max(0, targets.length - 1) * 0.15 * this.count("multi");
+    const targets = this.enemies.filter(
+      (e) =>
+        !e.dead &&
+        e !== except &&
+        distance(e, { x, y }) < radius &&
+        (!this.expedition || this.canSee({ x, y }, e)),
+    );
+    const multi = 1 + Math.max(0, targets.length - 1) * 0.15 * this.effectCount("multi");
     for (const e of targets) this.hit(e, damage * multi, false, Math.sign(e.x - x || 1) * push);
   }
   updateEnemy(e: Carrier, dt: number) {
@@ -951,9 +995,23 @@ export class SliceWorld extends World {
       d = distance(p, e),
       dir = Math.sign(p.x - e.x) || 1;
     const sight = this.canSee(e, p);
-    if (d < 760 && Math.abs(p.y - e.y) < 220 && sight) e.aggro = 5;
+    const notice = this.expedition ? (e.kind === "floater" ? 650 : 620) : 760;
+    const allowed = this.expedition?.mayPursue(e) ?? true;
+    if (!allowed) e.aggro = 0;
+    if (
+      allowed &&
+      d < notice &&
+      Math.abs(p.y - e.y) < (this.expedition && e.kind !== "floater" ? 100 : 220) &&
+      sight
+    )
+      e.aggro = 8;
+    const fighting = !this.expedition || this.training || e.aggro > 0 || e.windup > 0 || e.charge > 0;
+    const ecoTarget = this.expedition?.steerBody(e, dt, fighting) ?? null;
     let speed = 0;
-    if ((d < 800 || this.training) && e.stun <= 0 && e.frozen <= 0 && e.staggered <= 0) {
+    if (ecoTarget !== null && e.stun <= 0 && e.frozen <= 0 && e.staggered <= 0)
+      speed =
+        Math.abs(ecoTarget - e.x) < 8 ? 0 : Math.sign(ecoTarget - e.x) * (e.kind === "reclaimer" ? 115 : 60);
+    if (fighting && (d < 800 || this.training) && e.stun <= 0 && e.frozen <= 0 && e.staggered <= 0) {
       if (e.windup > 0) {
         e.windup = Math.max(0, e.windup - dt);
         if (e.windup === 0) {
@@ -1228,6 +1286,9 @@ export class SliceWorld extends World {
     }
     this.hostile.update(dt);
     if (this.hostile.playerStatus.frozen > 0) {
+      controls.up = false;
+      controls.down = false;
+      p.climbing = null;
       controls.left = false;
       controls.right = false;
       controls.jump = false;
@@ -1275,7 +1336,20 @@ export class SliceWorld extends World {
       p.cargoDash = pen.dash;
     }
     if (p.y > this.height + 40) this.hurtPlayer(100, p.x);
-    this.extracting = interactHeld && this.nearby()?.type === "exit" && this.time - this.hurtAt > 1;
+    this.extracting =
+      interactHeld &&
+      this.nearby()?.type === "exit" &&
+      (!this.expedition || !this.expedition.extractBlocked(this.expedition.extractorAt(p.x, p.y)!)) &&
+      this.time - this.hurtAt > 1 &&
+      (!this.expedition ||
+        (p.grounded &&
+          Math.abs(p.vx) < 8 &&
+          p.dashTime <= 0 &&
+          !c.left &&
+          !c.right &&
+          !c.jump &&
+          !c.dash &&
+          !this.attackedRecently()));
     this.extraction = this.extracting ? this.extraction + dt : 0;
     if (this.extraction >= 2 && !this.result) {
       this.result = "extracted";

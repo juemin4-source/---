@@ -14,6 +14,8 @@ export class ArtDirection {
   private ghosts: Phaser.GameObjects.Image[] = [];
   private weapon: Phaser.GameObjects.Graphics;
   private disposed = false;
+  private stride = 0;
+  private lastHeroX: number | null = null;
   private source: HTMLImageElement | null = null;
   private key = "eclipse-hero-actions-v1-calibrated";
   get heroReady() {
@@ -263,18 +265,22 @@ export class ArtDirection {
     if (!h) return false;
     const extra = w as World & { slamming?: boolean; armory?: { primary: string } };
     const moving = Math.abs(p.vx) > 35;
+    const travelled = this.lastHeroX === null ? 0 : Math.abs(p.x - this.lastHeroX);
+    this.lastHeroX = p.x;
+    if (moving && travelled < 80 && p.dashTime <= 0) this.stride += travelled;
+    const onFoot = p.grounded || (p.coyote > 0 && Math.abs(p.vy) < 30);
     const pose = extra.slamming
       ? 6
       : p.dashTime > 0
         ? 5
-        : !p.grounded
+        : !onFoot
           ? p.vy < -80
             ? 3
             : 4
           : p.squash > 0.06
             ? 7
             : moving
-              ? 1 + (Math.floor(w.time * 12) % 2)
+              ? 1 + (Math.floor(this.stride / 27) % 2)
               : 0;
     const anchors = HERO_ART_POSES.map(({ rect, pivot }) => [pivot[0] / rect[2], pivot[1] / rect[3]]);
     const direction = moving ? p.moveFacing : p.facing;

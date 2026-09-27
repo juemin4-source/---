@@ -59,10 +59,10 @@ describe("生态 · 世界自己变危险", () => {
     const apexLog = eco.log.filter((e) => e.event === "apex_created");
     expect(apexLog.length).toBeGreaterThan(0);
     // Each apex keeps an identity and a home nest rather than appearing from nothing.
-    expect(apexLog[0].detail).toMatch(/^[a-z]+-\d+ · 源自 nest-/);
+    expect(apexLog[0].detail).toMatch(/^[a-z]+-\d+ · 源自 (nest-|roam-)/);
     for (const a of eco.apexes) {
       expect(a.name).toMatch(/^[a-z]+-\d+$/);
-      expect(a.home).toMatch(/^nest-/);
+      expect(a.home).toMatch(/^(nest-|roam-)/);
       expect(a.biomass).toBeGreaterThanOrEqual(STAGE_BIOMASS.apex);
     }
   });
@@ -189,12 +189,13 @@ describe("生态 · 世界自己变危险", () => {
       let intervals = 0,
         count = 0;
       for (let t = 0; t < 240; t += 0.5) {
-        const before = eco.nests[0].spawnTimer;
+        const n = eco.nests.find((n) => n.district === "lower")!;
+        const before = n.spawnTimer;
         eco.update(0.5, { player, open: ALL_LOCKS });
         // A re-arm is any tick where the timer jumped upward. Summing rather than averaging would
         // cancel out, since slower breeding also produces fewer intervals.
-        if (eco.nests[0].spawnTimer > before) {
-          intervals += eco.nests[0].spawnTimer;
+        if (n.spawnTimer > before) {
+          intervals += n.spawnTimer;
           count++;
         }
       }
@@ -220,18 +221,18 @@ describe("生态 · 地图拓扑", () => {
   it("区域数量与巢穴数量符合设计", () => {
     expect(districts.length).toBeGreaterThanOrEqual(7);
     expect(districts.length).toBeLessThanOrEqual(9);
-    expect(nestDefs.length).toBe(5);
+    expect(nestDefs.length).toBe(6);
     // At least one district hosts two competing colonies, or predation could never happen.
     const perDistrict = new Map<string, number>();
     for (const n of nestDefs) perDistrict.set(n.district, (perDistrict.get(n.district) ?? 0) + 1);
     expect([...perDistrict.values()].some((v) => v > 1)).toBe(true);
   });
 
-  it("有两条初始路线、两条环路、单向落点与两类撤离点", () => {
-    const fromAirlock = passages(ALL_LOCKS).filter((p) => p.from === "airlock");
+  it("排水观察廊分出左右路线，两个环路与两类撤离点存在", () => {
+    const fromAirlock = passages(ALL_LOCKS).filter((p) => p.from === "lower" && p.to !== "cargo");
     expect(fromAirlock.length).toBeGreaterThanOrEqual(2);
-    const oneWay = passages(ALL_LOCKS).filter((p) => p.link.oneWay);
-    expect(oneWay.length).toBeGreaterThanOrEqual(1);
+    const edges = new Set(passages(ALL_LOCKS).map((p) => p.link.id));
+    expect(edges.size - districts.length + 1).toBeGreaterThanOrEqual(2);
     expect(districts.some((d) => d.id === "airlock")).toBe(true);
     expect(districts.some((d) => d.id === "heatx")).toBe(true);
   });
@@ -248,9 +249,9 @@ describe("生态 · 地图拓扑", () => {
 
   it("未解锁的捷径不能通行，解锁后可以", () => {
     const locked = passages(new Set());
-    expect(locked.some((p) => p.link.lock === "spine-door")).toBe(false);
-    const open = passages(new Set(["spine-door"]));
-    expect(open.some((p) => p.link.lock === "spine-door")).toBe(true);
+    expect(locked.some((p) => p.link.lock === "sewer-valve")).toBe(false);
+    const open = passages(new Set(["sewer-valve"]));
+    expect(open.some((p) => p.link.lock === "sewer-valve")).toBe(true);
   });
 
   it("地图是全连通的（任何区域都能走到撤离点）", () => {

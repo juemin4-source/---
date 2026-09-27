@@ -51,6 +51,8 @@ interface EnemyShot {
   hits: Set<number>;
 }
 export const enemyModuleHints: Record<OrganId, string> = {
+  vitality: "每层增加 20 生命",
+  armor: "每层 12 护甲，递减减伤",
   ram: "冲锋接触造成伤害",
   battery: "把目标击退撞墙获得充能",
   discharge: "充能强化重击并放电",
@@ -114,11 +116,15 @@ export class EnemyCombat {
         slamY: 0,
       };
       this.kits.set(e, k);
-      if (e.count("glass")) {
+      if (!this.w.ecoIds.has(e)) {
+        e.maxHp += 20 * e.count("vitality");
+        e.hp += 20 * e.count("vitality");
+      }
+      if (!this.w.ecoIds.has(e) && e.count("glass")) {
         e.hp *= 0.7 ** e.count("glass");
         e.maxHp *= 0.7 ** e.count("glass");
       }
-      if (e.count("leech")) {
+      if (!this.w.ecoIds.has(e) && e.count("leech")) {
         e.hp += 10 * e.count("leech");
         e.maxHp += 10 * e.count("leech");
       }
@@ -147,6 +153,7 @@ export class EnemyCombat {
     if (e.count("overflow")) this.kit(e).shield += over * e.count("overflow");
   }
   defend(e: Carrier, amount: number) {
+    amount /= 1 + 0.12 * e.count("armor");
     const k = this.kit(e);
     if (k.invuln > 0) return 0;
     if (k.blocking && (this.w.player.x - e.x) * e.chargeDirection >= 0) amount *= 0.4;

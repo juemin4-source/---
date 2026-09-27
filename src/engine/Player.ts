@@ -1,5 +1,12 @@
 import { Body, clamp, integrate, GRAVITY, type Rect } from "./PhysicsHelpers";
+export interface Ladder {
+  x: number;
+  top: number;
+  bottom: number;
+}
 export interface Controls {
+  up?: boolean;
+  down?: boolean;
   left: boolean;
   right: boolean;
   jump: boolean;
@@ -28,6 +35,11 @@ export const idleControls = (): Controls => ({
   my: 400,
 });
 export class Player extends Body {
+  ladders: Ladder[] = [];
+  climbing: Ladder | null = null;
+  traversalBlocked = false;
+  private ladderLock = 0;
+  private wallKick = 0;
   hp = 100;
   maxHp = 100;
   aim = 0;
@@ -73,6 +85,46 @@ export class Player extends Body {
     this.invulnerable -= dt;
     this.coyote = this.grounded ? 0.12 : Math.max(0, this.coyote - dt);
     this.jumpBuffer = c.jump ? 0.15 : Math.max(0, this.jumpBuffer - dt);
+    this.ladderLock = Math.max(0, this.ladderLock - dt);
+    this.wallKick = Math.max(0, this.wallKick - dt);
+    if (this.traversalBlocked) this.climbing = null;
+    if (!this.climbing && !this.traversalBlocked && this.ladderLock === 0 && (c.up || c.down)) {
+      this.climbing =
+        this.ladders.find(
+          (l) =>
+            Math.abs(this.x - l.x) < 24 &&
+            this.y >= l.top - this.h / 2 - 4 &&
+            this.y <= l.bottom - this.h / 2 + 16,
+        ) ?? null;
+    }
+    if (this.climbing) {
+      const l = this.climbing;
+      if (c.jump || c.dash || c.fire || c.melee) {
+        this.climbing = null;
+        this.ladderLock = 0.25;
+        if (c.jump) {
+          this.vy = -540;
+          this.jumped = true;
+          this.jumpBuffer = 0;
+          c = { ...c, jump: false };
+        }
+      } else {
+        this.x = l.x;
+        this.vx = 0;
+        this.vy = (Number(!!c.down) - Number(!!c.up)) * 175;
+        this.y = clamp(this.y + this.vy * dt, l.top - this.h / 2, l.bottom - this.h / 2);
+        this.dashTime = 0;
+        this.grounded = false;
+        this.airJumpAvailable = true;
+        if ((c.up && this.y <= l.top - this.h / 2) || (c.down && this.y >= l.bottom - this.h / 2)) {
+          this.climbing = null;
+          this.ladderLock = 0.2;
+          this.grounded = true;
+          this.vy = 0;
+        }
+        return;
+      }
+    }
     const dir = Number(c.right) - Number(c.left);
     if (dir) this.moveFacing = dir;
     if (c.dash && this.dashCooldown <= 0) {
@@ -100,10 +152,29 @@ export class Player extends Body {
     }
     const target = dir * 325 * this.moveScale * this.cargoSpeed;
     const acceleration = this.grounded ? (dir ? 6200 : 7800) : dir ? 3800 : 2400;
-    this.vx += clamp(target - this.vx, -acceleration * dt, acceleration * dt);
+    if (this.wallKick <= 0) this.vx += clamp(target - this.vx, -acceleration * dt, acceleration * dt);
     this.vx += this.externalX * dt;
     this.externalX *= Math.exp(-5 * dt);
-    if (this.jumpBuffer > 0 && this.coyote > 0) {
+    const wall =
+      !this.grounded && !this.traversalBlocked
+        ? platforms.find(
+            (r) =>
+              !r.oneWay &&
+              r.h >= 60 &&
+              Math.abs(this.y - r.y) < (this.h + r.h) / 2 - 8 &&
+              Math.abs(Math.abs(this.x - r.x) - (this.w + r.w) / 2) < 5,
+          )
+        : undefined;
+    if (wall && this.jumpBuffer > 0 && this.wallKick <= 0) {
+      const away = Math.sign(this.x - wall.x) || 1;
+      this.vx = away * 350;
+      this.vy = -610;
+      this.moveFacing = away;
+      this.wallKick = 0.16;
+      this.jumpBuffer = 0;
+      this.jumped = true;
+      this.airJumpAvailable = true;
+    } else if (this.jumpBuffer > 0 && this.coyote > 0) {
       this.vy = -610 * this.cargoJump;
       this.jumpBuffer = 0;
       this.coyote = 0;
@@ -123,6 +194,7 @@ export class Player extends Body {
     const wasGrounded = this.grounded,
       fallSpeed = this.vy;
     const gravityScale = this.vy > 140 ? 1.3 : c.jumpHeld && Math.abs(this.vy) < 110 ? 0.6 : 1;
+    if (wall && dir === -Math.sign(this.x - wall.x) && this.vy > 0) this.vy = Math.min(this.vy, 95);
     integrate(this, dt, platforms, GRAVITY * gravityScale);
     if (!wasGrounded && this.grounded) {
       this.airJumpAvailable = true;

@@ -37,7 +37,14 @@ describe("0.10 地图可达性", () => {
     const limit = jump * 0.8;
     const failures: string[] = [];
     for (const l of geo.connectors) {
-      if (l.sameFloor || l.kind === "drop") continue; // walking, or a one-way descent
+      if (
+        l.sameFloor ||
+        l.kind === "drop" ||
+        l.kind === "shaft" ||
+        l.kind === "freightLift" ||
+        geo.ladders.some((r) => r.x === l.x && r.top === l.topSurface)
+      )
+        continue; // Other connectors have traversal tests.
       // Rungs are the climbable platforms in this connector's own column; compare SURFACES, since
       // that is what a player actually stands on.
       const surface = (p: { y: number; h: number }) => p.y - p.h / 2;

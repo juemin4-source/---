@@ -4,6 +4,7 @@ import { ARCHETYPES, matchup } from "./expedition/Counters";
 import { expeditionMapHTML } from "./expedition/ExpeditionMapView";
 import { ecologyOverlayHTML } from "./expedition/EcologyOverlay";
 import { districts } from "./AscentMap";
+import { districts as expeditionDistricts } from "./expedition/ExpeditionMap";
 import { guideHTML, nextBuildTarget, fieldBuilds } from "./BuildGuide";
 import { Renderer } from "../engine/Renderer";
 import { Synth } from "../engine/Effects";
@@ -65,7 +66,7 @@ export class SliceScene extends Phaser.Scene {
   timeScale = 1;
   create() {
     document.getElementById("app")!.classList.add("slice-app");
-    document.title = "永蚀 · 沉井上行 / 0.9";
+    document.title = "永蚀 · 活生态搜打撤 / 0.10";
     try {
       this.save = parseSave(localStorage.getItem(SAVE_KEY));
     } catch {
@@ -221,6 +222,7 @@ export class SliceScene extends Phaser.Scene {
       this.world.reviveTraining();
       this.settled = false;
     }
+    if (action === "drop-cargo" && slot) this.world.expedition?.dropLoot(Number(slot));
     if (action === "apply-bench") this.applyBench();
     if (action === "spawn-bench") {
       this.applyBench();
@@ -416,6 +418,8 @@ export class SliceScene extends Phaser.Scene {
     const mouse = this.input.activePointer;
     if (active) {
       const c = this.pending;
+      c.up = this.keys.W.isDown;
+      c.down = this.keys.S.isDown;
       c.left = this.keys.A.isDown;
       c.right = this.keys.D.isDown;
       c.jump = this.pressed("SPACE") || c.jump;
@@ -434,7 +438,7 @@ export class SliceScene extends Phaser.Scene {
         if (this.pressed(key))
           this.world.armory.switchSecondary((Object.keys(secondaries) as SecondaryId[])[i]);
       });
-      this.world.player.platformDrop = this.keys.S.isDown;
+      this.world.player.platformDrop = this.keys.S.isDown && !this.world.player.climbing;
       if (this.pressed("H")) this.world.heal();
       if (this.pressed("E")) {
         this.world.interact();
@@ -503,7 +507,7 @@ export class SliceScene extends Phaser.Scene {
     this.art.labels.get("roommark")?.setVisible(false);
     this.art.labels.get("sector")?.setVisible(false);
     this.art.labels.get("ascent")?.setVisible(false);
-    for (const portal of w.ascent ? [] : w.zone.portals) {
+    for (const portal of w.ascent || w.expedition ? [] : w.zone.portals) {
       const locked = portal.shortcut && !w.shortcut,
         color = locked ? 0x526463 : portal.to === "core" ? 0xef9290 : 0xa4d7c8;
       g.fillStyle(color, 0.08);
@@ -519,7 +523,7 @@ export class SliceScene extends Phaser.Scene {
         12,
       );
     }
-    if (!w.ascent && w.zoneId === "hub") {
+    if (!w.ascent && !w.expedition && w.zoneId === "hub") {
       g.fillStyle(0x9edcc3, 0.07);
       g.fillRect(110, 475, 140, 136);
       g.lineStyle(2, 0x9edcc3, 0.8);
@@ -532,7 +536,7 @@ export class SliceScene extends Phaser.Scene {
       this.art.label("hub-map", 426, 325, "← 西线：撞墙充能       东线：印记传导 →", "#90aaa2", 16);
       this.art.label("hub-tip", 426, 358, "Tab 查看猎取路线；拿到收获后，可沿原路撤回。", "#90aaa2", 13);
     }
-    const chest = w.ascent ? undefined : w.zone.chest;
+    const chest = w.ascent || w.expedition ? undefined : w.zone.chest;
     if (chest && !w.areas[w.zoneId].searched) {
       g.fillStyle(0x303e37);
       g.fillRoundedRect(chest.x - 18, 574, 36, 36, 3);
@@ -785,6 +789,7 @@ export class SliceScene extends Phaser.Scene {
       g.strokeCircle(w.player.x, w.player.y, 37);
     }
     w.ascent?.render(this.art);
+    w.expedition?.render(this.art);
     renderJuice(this.art, w.juice, w.time);
     // Frenzy halo around the player: an at-a-glance read of how hot the streak is.
     const tier = w.juice.tier;
@@ -827,7 +832,7 @@ export class SliceScene extends Phaser.Scene {
   slotCard(id: OrganId | undefined, index: number, button = false) {
     const tag = button ? "button" : "div",
       info = id ? organs[id] : null;
-    return `<${tag} class="slice-slot ${id ? "filled" : ""}" ${button ? `data-action="equip" data-slot="${index}"` : ""} style="--organ:${info?.color ?? "#5e7671"}" title="${info?.description ?? "空槽"}"><small>0${index + 1}</small><b>${info?.name ?? "空槽"}${id ? ` ×${this.world.count(id)}` : ""}</b><span>${id ? stackEffect(id, this.world.count(id)) : "等待接入"}</span>${button && info ? `<p>${info.description}</p>` : ""}</${tag}>`;
+    return `<${tag} class="slice-slot ${id ? "filled" : ""}" ${button ? `data-action="equip" data-slot="${index}"` : ""} style="--organ:${info?.color ?? "#5e7671"}" title="${info?.description ?? "空槽"}"><small>0${index + 1}</small><b>${info?.name ?? "空槽"}${id ? ` ×${this.world.count(id)}` : ""}</b><span>${id ? stackEffect(id, this.world.count(id), !!this.world.expedition) : "等待接入"}</span>${button && info ? `<p>${info.description}</p>` : ""}</${tag}>`;
   }
   refreshHUD() {
     const w = this.world,
@@ -840,9 +845,10 @@ export class SliceScene extends Phaser.Scene {
         .padStart(2, "0")}`;
     const a = w.armory;
     const ex = w.expedition;
+    const district = ex ? expeditionDistricts.find((d) => d.id === ex.district) : undefined;
     const target = w.ascent ? nextBuildTarget(w, w.ascent.trackedBuild) : null;
     const guide = ex
-      ? `<div class="build-tracker"><b>${ex.district} 区</b> · 威胁 ${ex.eco.threatLabel()}<br>货物 ${ex.cargo.value} 价值 / ${ex.cargo.weight} 重量 / ${ex.cargo.size}格${
+      ? `<div class="build-tracker"><b>${district?.name ?? ex.district}</b> · 威胁 ${ex.eco.threatLabel()}<br>货物 ${ex.cargo.value} 价值 / ${ex.cargo.weight} 重量 / ${ex.cargo.size}格${
           ex.heavy ? ` <span class="warn">重型·移动变慢</span>` : ""
         }<br>${ex.power ? "货运站已供电" : "货运站未供电"} · 已搜 ${ex.metrics.searchesCompleted}/${ex.piles.length} · F3 生态</div>`
       : w.ascent
@@ -863,10 +869,10 @@ export class SliceScene extends Phaser.Scene {
               ? `连段 ${a.combo + 1}/3 · 第三段重击`
               : `${"▰".repeat(w.ammo)}${"▱".repeat(5 - w.ammo)} 第五发重击`;
     this.hud.innerHTML = `<header class="slice-top"><div><b>永蚀<span>EVER ECLIPSE</span></b><small>${w.training ? (w.unlimited ? "无限槽训练 / 0.10" : "六槽训练 / 0.10") : w.unlimited ? "活生态 · 无限槽 / 0.10" : "活生态 · 六槽 / 0.10"}</small></div><div class="slice-cargo">${w.training ? "累计击杀" : "携带价值"} <strong>${w.training ? w.stats.kills : (ex?.cargo.value ?? w.cargo)}</strong><small>${w.training ? "B 训练台 · 1–9 武器" : ex ? `${ex.cargo.size}/${ex.cargo.capacity} 格 · 死亡全部丢失` : "死亡全部丢失"}</small></div><div class="slice-clock">${t}<small>${this.synth.muted ? "声音关闭" : "M 静音"} · Esc 暂停</small></div></header>
-      <div class="slice-zone"><small>${w.ascent ? "沉井 → 地表 / 上行探索" : w.zone.subtitle}</small><h2>${w.training ? `第 ${w.wave} 波 · 持续增压` : (w.ascent?.title ?? w.zone.name)}</h2><span>${w.training ? `敌人生命 ×${number(w.enemyHealthScale())} · 场上 ${w.enemies.filter((e) => !e.dead).length}` : w.ascent ? `已上行 ${Math.max(0, Math.round((3096 - p.y) / 40))}m · Tab 剖面地图` : w.zone.risk ? "危险 " + "◆".repeat(w.zone.risk) : "安全区"}</span><p class="combat-readout">5 秒 DPS <b>${number(w.dps)}</b><br>撞墙 ${w.metrics.wallCharges} · 传导 ${w.metrics.transmissions}<br>冻结 ${w.metrics.freezes} · 碎冰 ${w.metrics.shatters}</p></div>
-      ${guide}<div class="slice-vitals"><div>生命 <b>${Math.ceil(p.hp)} / ${p.maxHp} ${w.shield > 0 ? `＋盾 ${number(w.shield)}` : ""}</b></div><div class="slice-health"><i style="width:${(p.hp / p.maxHp) * 100}%"></i></div><div>充能 <b>${w.energy} / ${w.energyMax}</b></div><small>体质 ${w.vitalityLevel} · 下一级 ${6 - (w.collectedLayers % 6)} 层 · 回生膜 +${10 * w.count("leech")} 生命</small><small>体力 ${Math.round(w.stamina)} / 100　热量 ${Math.round(w.heat)} / 100</small><div class="resource-meter"><i style="width:${w.heat}%;background:${w.overheated ? "#ff687d" : "#d5a86b"}"></i></div><small>${weapons[a.primary].name}</small><small>${weaponStatus}</small><small>${secondaries[a.secondary].name} · ${w.grenadeCooldown > 0 ? w.grenadeCooldown.toFixed(1) + "s" : "就绪"}</small><small>H 治疗 ×${w.medkits} ${a.secondary === "drone" ? ` · 无人机储备 ${a.droneStock}` : ""}</small></div>
+      <div class="slice-zone"><small>${ex ? "九号泵站 / 上行探索" : w.ascent ? "沉井 → 地表 / 上行探索" : w.zone.subtitle}</small><h2>${w.training ? `第 ${w.wave} 波 · 持续增压` : (district?.name ?? w.ascent?.title ?? w.zone.name)}</h2><span>${w.training ? `敌人生命 ×${number(w.enemyHealthScale())} · 场上 ${w.enemies.filter((e) => !e.dead).length}` : ex ? "Tab 查看已发现路线" : w.ascent ? `已上行 ${Math.max(0, Math.round((3096 - p.y) / 40))}m · Tab 剖面地图` : w.zone.risk ? "危险 " + "◆".repeat(w.zone.risk) : "安全区"}</span><p class="combat-readout">5 秒 DPS <b>${number(w.dps)}</b><br>撞墙 ${w.metrics.wallCharges} · 传导 ${w.metrics.transmissions}<br>冻结 ${w.metrics.freezes} · 碎冰 ${w.metrics.shatters}</p></div>
+      ${guide}<div class="slice-vitals"><div>生命 <b>${Math.ceil(p.hp)} / ${p.maxHp} ${w.shield > 0 ? `＋盾 ${number(w.shield)}` : ""}</b></div><div class="slice-health"><i style="width:${(p.hp / p.maxHp) * 100}%"></i></div><div>充能 <b>${w.energy} / ${w.energyMax}</b></div><small>体质 ${w.vitalityLevel} · 下一级 ${6 - (w.collectedLayers % 6)} 层 · 模块生命 +${10 * w.count("leech") + 20 * w.count("vitality")} · 护甲 ${12 * w.count("armor")}</small><small>体力 ${Math.round(w.stamina)} / 100　热量 ${Math.round(w.heat)} / 100</small><div class="resource-meter"><i style="width:${w.heat}%;background:${w.overheated ? "#ff687d" : "#d5a86b"}"></i></div><small>${weapons[a.primary].name}</small><small>${weaponStatus}</small><small>${secondaries[a.secondary].name} · ${w.grenadeCooldown > 0 ? w.grenadeCooldown.toFixed(1) + "s" : "就绪"}</small><small>H 治疗 ×${w.medkits} ${a.secondary === "drone" ? ` · 无人机储备 ${a.droneStock}` : ""}</small></div>
       <div class="slice-message">${w.messageTime > 0 ? escape(w.message) : ""}</div><div class="slice-prompt">${n?.label ?? ""}</div>
-      <footer class="slice-bottom">${w.unlimited ? `<div class="collection-count">${w.slots.length} 种 · ${w.totalLayers} 层 · 靠近自动接入 · B 查看全部效果</div>` : ""}<div class="slice-slots ${w.unlimited ? "unlimited-slots" : ""}">${Array.from({ length: w.unlimited ? Math.max(1, w.slots.length) : 6 }, (_, i) => this.slotCard(w.slots[i], i)).join("")}</div><div class="slice-controls">A D 移动 · Space 二段跳 · Shift 冲刺 · F 下砸 | 左键主武器 · Q 副武器 · 右键盾 · H 治疗 | 1–9 换武器 · B 配装台 · E 接入</div></footer>`;
+      <footer class="slice-bottom">${w.unlimited ? `<div class="collection-count">${w.slots.length} 种 · ${w.totalLayers} 层 · 靠近自动接入 · B 查看全部效果</div>` : ""}<div class="slice-slots ${w.unlimited ? "unlimited-slots" : ""}">${Array.from({ length: w.unlimited ? Math.max(1, w.slots.length) : 6 }, (_, i) => this.slotCard(w.slots[i], i)).join("")}</div><div class="slice-controls">A D 移动 · W/S 爬梯 · Space 跳跃/蹬墙 · Shift 冲刺 · F 下砸 | 左键主武器 · Q 副武器 · 右键盾 · H 治疗 | 1–9 换武器 · B 配装台 · E 接入</div></footer>`;
   }
   panel(body: string, wide = false) {
     return `<section class="slice-panel ${wide ? "wide" : ""}">${body}</section>`;
@@ -934,7 +940,7 @@ export class SliceScene extends Phaser.Scene {
     if (!state) return;
     if (state === "intro") {
       this.overlay.innerHTML = this.panel(
-        `<div class="slice-eyebrow">EVER ECLIPSE / 0.9</div><h1 class="slice-title">永蚀<span>器官猎场</span></h1><p class="slice-lead">猎取敌人的能力。<br>拼出你的组合，决定何时带它们回家。</p><div class="slice-intro-grid"><div><small>01 / 猎取</small><b>看清携带者</b><p>敌人头顶标出器官。击杀后按 E 查看，接入六个槽位。</p></div><div><small>02 / 组合</small><b>改变战斗方式</b><p>撞墙积攒充能，或用印记连接敌群。同类靠近自动叠层。无限版可同时接入所有类型；六槽版保留取舍。</p></div><div><small>03 / 撤离</small><b>活着带回收获</b><p>任何时候都能返回气闸。死亡丢失本局收获；从上方接通升降台，缩短回程。</p></div></div><button class="slice-primary" data-action="start-unlimited">无限收集 · 进入沉井<span>∞</span></button><button class="slice-secondary" data-action="start-six">六槽探索 · 对照版本<span>↑</span></button><p class="slice-muted">无限版：所有地面器官靠近自动接入，包含有代价的模块；本地增援持续掉落 28 种模块，随收集与时间变强。六槽版：仅已装的同类自动拾取。</p><button class="slice-secondary" data-action="train-unlimited">无尽训练 · 无限槽<span>∞</span></button><button class="slice-secondary" data-action="train">无尽训练 · 六槽<span>↗</span></button><p class="slice-muted">A D 移动 · Space 二段跳 · 左键射击 · Shift 冲刺 · E 交互 · Tab 地图 · R 推荐 build<br>九件武器 · B 武器配装台 · 当前档案：${this.save.research.length}/${organIds.length} 器官 · 已带回 ${this.save.bank} 样本 · 上方通电解锁本趟升降台</p>${this.interrupted ? '<p class="slice-notice">上一趟出行中断，未结算收获已丢失。已带回的进度仍保留。</p>' : ""}<p class="slice-notice">${this.storageWarning}</p>`,
+        `<div class="slice-eyebrow">EVER ECLIPSE / 0.10</div><h1 class="slice-title">永蚀<span>器官猎场</span></h1><p class="slice-lead">猎取敌人的能力。<br>拼出你的组合，决定何时带它们回家。</p><div class="slice-intro-grid"><div><small>01 / 猎取</small><b>看清携带者</b><p>敌人头顶标出器官。无限版击杀后走近自动接入，同类效果叠加。</p></div><div><small>02 / 组合</small><b>改变战斗方式</b><p>撞墙积攒充能，或用印记连接敌群。同类靠近自动叠层。无限版可同时接入所有类型；六槽版保留取舍。</p></div><div><small>03 / 撤离</small><b>活着带回收获</b><p>任何时候都能返回气闸。死亡丢失本局收获；从上方接通升降台，缩短回程。</p></div></div><button class="slice-primary" data-action="start-unlimited">无限收集 · 进入沉井<span>∞</span></button><button class="slice-secondary" data-action="start-six">六槽探索 · 对照版本<span>↑</span></button><p class="slice-muted">无限版：所有地面器官靠近自动接入，包含有代价的模块；巢穴繁殖、尸骸吞噬与器官继承改变地图上的危险。六槽版：仅已装的同类自动拾取。</p><button class="slice-secondary" data-action="train-unlimited">无尽训练 · 无限槽<span>∞</span></button><button class="slice-secondary" data-action="train">无尽训练 · 六槽<span>↗</span></button><p class="slice-muted">A D 移动 · W/S 爬梯 · Space 跳跃/蹬墙 · 左键射击 · Shift 冲刺 · E 交互 · Tab 地图 · R 推荐 build<br>九件武器 · B 武器配装台 · 当前档案：${this.save.research.length}/${organIds.length} 器官 · 已带回 ${this.save.bank} 样本 · 上方通电解锁本趟升降台</p>${this.interrupted ? '<p class="slice-notice">上一趟出行中断，未结算收获已丢失。已带回的进度仍保留。</p>' : ""}<p class="slice-notice">${this.storageWarning}</p>`,
         true,
       );
     } else if (w.result && w.training) {
@@ -974,7 +980,21 @@ export class SliceScene extends Phaser.Scene {
       );
     } else if (state === "guide") this.overlay.innerHTML = this.panel(guideHTML(w), true);
     else if (state === "eco" && w.expedition) this.overlay.innerHTML = ecologyOverlayHTML(w.expedition);
-    else if (state === "bench") this.overlay.innerHTML = this.panel(trainingPanel(w, this.benchStacks), true);
+    else if (state === "bench")
+      this.overlay.innerHTML = this.panel(
+        trainingPanel(w, this.benchStacks) +
+          (w.expedition
+            ? `<section><h2>携带货物</h2><p>放下的货物保留在脚下，可重新按住 E 拾取。</p>${
+                w.expedition.cargo.items
+                  .map(
+                    (item) =>
+                      `<div><b>${item.def.name}</b> · 价值 ${item.def.value} · 重量 ${item.def.weight}<button class="slice-secondary" data-action="drop-cargo" data-slot="${item.uid}">放下 ${item.def.name}</button></div>`,
+                  )
+                  .join("") || "尚未携带货物"
+              }</section>`
+            : ""),
+        true,
+      );
     else if (state === "map") this.overlay.innerHTML = this.mapHTML();
     else if (state === "help")
       this.overlay.innerHTML = this.panel(

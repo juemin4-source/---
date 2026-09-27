@@ -6,3 +6,9 @@ art/
 package-lock.json
 *.md
 *.txt
+
+# Exported playtest recordings are data, not source.
+tests/永蚀-试玩-*.json
+
+# User-supplied reverse-engineered reference data, not application source.
+deadcells_pak/

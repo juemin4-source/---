@@ -1,4 +1,4 @@
-import { distance, type Rect } from "../../engine/PhysicsHelpers";
+import { distance, rayRect, type Rect } from "../../engine/PhysicsHelpers";
 import type { Controls } from "../../engine/Player";
 import type { Renderer } from "../../engine/Renderer";
 import type { Carrier, SliceWorld } from "../SliceWorld";
@@ -11,6 +11,7 @@ import {
   cargoAdd,
   cargoPenalty,
   cargoRemove,
+  nextUid,
   freshCargo,
   isBulky,
   type CargoState,
@@ -23,7 +24,7 @@ import {
   type SearchInterrupt,
   type SearchState,
 } from "./SearchSystem";
-import { type DistrictId } from "./ExpeditionMap";
+import { districtById, type DistrictId } from "./ExpeditionMap";
 import type { EcoCreature } from "./EcologyTypes";
 
 export interface ExpeditionMetrics {
@@ -108,7 +109,10 @@ export class Expedition {
   /** Carriers currently materialized near the player, keyed by ecology creature id. */
   live = new Map<number, Carrier>();
   events: { time: number; event: string; detail: string }[] = [];
+  private liftDirections = new Map<number, number>();
+  private liftWaits = new Map<number, number>();
   private lastX: number;
+  private lastY: number;
   private searchStartedAt = 0;
 
   constructor(
@@ -126,10 +130,12 @@ export class Expedition {
     w.player.x = this.geometry.start.x;
     w.player.y = this.geometry.start.y;
     w.player.boundsWidth = w.width;
+    w.player.ladders = this.geometry.ladders.filter((l) => !l.lock);
     this.lastX = w.player.x;
+    this.lastY = w.player.y;
     this.eco = new Ecology(seed);
     this.piles = buildLootPiles((c) => this.rng.chance(c));
-    w.say("安全气闸 · 按住 E 搜索 · Tab 看地图 · 勿贪");
+    w.say("九号泵站 · 向右穿过维修工区 · 空格跳跃 / 二段跳 · 器官靠近自动接入");
   }
 
   // ── queries ─────────────────────────────────────────────────────────────────
@@ -196,6 +202,16 @@ export class Expedition {
   dropLoot(uid: number) {
     const item = cargoRemove(this.cargo, uid);
     if (!item) return null;
+    this.piles.push({
+      uid: nextUid(),
+      x: this.w.player.x,
+      y: this.w.player.y,
+      district: this.district,
+      source: item.def.name,
+      taken: false,
+      difficulty: 0,
+      items: [item],
+    });
     this.event("loot_drop", `${item.def.name} -${item.def.value}`);
     if (item.def.heavy) this.event("heavy_drop", `负重 ${this.cargo.weight}`);
     return item;
@@ -204,6 +220,7 @@ export class Expedition {
     const s = this.shortcutAt(x, y);
     if (!s || this.open.has(s.id)) return null;
     this.open.add(s.id);
+    for (const gate of this.geometry.gates) if (gate.lock === s.id) this.w.platforms[gate.index].y = -1000;
     this.metrics.shortcutsOpened++;
     if (s.id === "freight-power") {
       this.power = true;
@@ -228,8 +245,33 @@ export class Expedition {
   update(dt: number, c: Controls, interactHeld: boolean, damaged: boolean, attacked: boolean) {
     this.time += dt;
     const p = this.w.player;
+    p.traversalBlocked = this.heavy;
+    p.ladders = this.geometry.ladders.filter((l) => !l.lock || this.open.has(l.lock));
+    for (const lift of this.geometry.lifts) {
+      const platform = this.w.platforms[lift.index];
+      if (!this.power) continue;
+      const wait = this.liftWaits.get(lift.index) ?? 0;
+      if (wait > 0) {
+        this.liftWaits.set(lift.index, wait - dt);
+        continue;
+      }
+      const direction = this.liftDirections.get(lift.index) ?? -1;
+      const oldTop = platform.y - platform.h / 2;
+      const top = Math.max(lift.top, Math.min(lift.bottom, oldTop + direction * 95 * dt));
+      const riding =
+        Math.abs(p.x - platform.x) < platform.w / 2 && Math.abs(p.y + p.h / 2 - oldTop) < 4 && p.vy >= 0;
+      platform.y = top + platform.h / 2;
+      if (riding) {
+        p.y += top - oldTop;
+        p.vy = 0;
+        p.grounded = true;
+      }
+      if (top === lift.top || top === lift.bottom) {
+        this.liftDirections.set(lift.index, -direction);
+        this.liftWaits.set(lift.index, 2);
+      }
+    }
     this.metrics.distanceTravelled += Math.abs(p.x - this.lastX);
-    this.lastX = p.x;
     const here = districtOf(p.x, p.y);
     if (here && here !== this.district) {
       this.district = here;
@@ -240,12 +282,18 @@ export class Expedition {
     }
     // Heavy cargo cannot squeeze through a narrow passage: this is what forces a route decision.
     if (!this.canEnterNarrow(p.x, p.y)) {
-      p.vx = -Math.sign(p.vx || 1) * 40;
+      p.x = this.lastX;
+      p.y = this.lastY;
+      p.vx = 0;
+      p.vy = 0;
+      p.dashTime = 0;
       if (this.time - (this.lastBlocked ?? -9) > 1.5) {
         this.lastBlocked = this.time;
         this.w.say("维修井太窄 · 重型货物过不去，绕货运路线");
       }
     }
+    this.lastX = p.x;
+    this.lastY = p.y;
     // Search.
     const wasSearching = !!this.search.pile;
     const step = stepSearch(
@@ -253,7 +301,7 @@ export class Expedition {
       dt,
       {
         holding: interactHeld,
-        canSearch: p.grounded && !this.w.result,
+        canSearch: p.grounded && p.dashTime <= 0 && !c.dash && !c.jump && !this.w.result,
         playerX: p.x,
         playerY: p.y,
         damaged,
@@ -295,7 +343,16 @@ export class Expedition {
   private syncEcology(dt: number) {
     const w = this.w,
       p = w.player;
-    const ctx: EcoContext = { player: { x: p.x, y: p.y, district: this.district }, open: this.open };
+    // Combat is authoritative while a body exists. Publish BEFORE the abstract tick.
+    for (const [id, body] of this.live) {
+      const creature = this.eco.creatures.find((o) => o.id === id);
+      if (creature?.alive) this.publishBody(creature, body);
+    }
+    const ctx: EcoContext = {
+      player: { x: p.x, y: p.y, district: this.district },
+      open: this.open,
+      materialized: new Set(this.live.keys()),
+    };
     this.eco.update(dt, ctx);
     // Spawn: a creature near the player becomes a real Carrier, so the same ecology runs whether or
     // not the player is looking at it. Neighbouring districts are included deliberately: the airlock
@@ -342,10 +399,150 @@ export class Expedition {
       this.metrics.timeOfFirstApex = +this.time.toFixed(1);
   }
 
+  private publishBody(c: EcoCreature, body: Carrier) {
+    c.x = body.x;
+    c.y = body.y;
+    c.district = districtOf(body.x, body.y) ?? c.district;
+    c.hp = body.hp;
+    c.maxHp = body.maxHp;
+    c.organs = body.organs;
+  }
+
+  /** Called before real enemy movement; ecology may steer, but never teleports the body. */
+  steerBody(body: Carrier, dt: number, fighting: boolean): number | null {
+    const id = this.w.ecoIds.get(body);
+    const c = this.eco.creatures.find((o) => o.id === id);
+    if (!c?.alive) return null;
+    this.publishBody(c, body);
+    const hunt =
+      !fighting && body.stun <= 0 && body.frozen <= 0 && body.staggered <= 0
+        ? this.creatureCombat(c, body, dt)
+        : null;
+    if (fighting) this.hunts.delete(c.id);
+    const target =
+      hunt ??
+      this.eco.physicalIntent(c, dt, fighting, (r) => Math.abs(r.y - body.y) < 70 && this.clearLine(body, r));
+    body.hp = c.hp;
+    body.maxHp = c.maxHp;
+    body.organs = c.organs;
+    body.weapon = c.weapon;
+    body.secondary = c.secondary;
+    const poise = c.stage === "apex" ? 82 : c.stage === "mature" ? 48 : 30;
+    if (body.maxPoise !== poise) {
+      body.maxPoise = poise;
+      body.poise = Math.min(poise, body.poise + 18);
+    }
+    return target;
+  }
+
+  private killsForSalvage = 0;
+  salvage(body: Carrier, id?: number): [OrganId, number][] {
+    const c = this.eco.creatures.find((c) => c.id === id);
+    this.killsForSalvage++;
+    const budget =
+      c?.stage === "apex"
+        ? 3
+        : c?.stage === "mature"
+          ? 2
+          : this.killsForSalvage <= 3 || this.killsForSalvage % 3 === 0
+            ? 1
+            : 0;
+    // Damaged layers remain ecological food; recover only a few intact organs, never an entire stack.
+    const result = body.organs
+      .entries()
+      .slice(0, budget)
+      .map(([organ]) => [organ, 1] as [OrganId, number]);
+    this.event("organ_salvage", `${c?.name ?? body.id}: ${result.map(([o]) => o).join(",") || "无完整器官"}`);
+    return result;
+  }
+  mayPursue(body: Carrier) {
+    const c = this.eco.creatures.find((c) => c.id === this.w.ecoIds.get(body));
+    if (!c) return true;
+    if (this.district === "airlock" || this.district === "cool") return false;
+    const leash = c.stage === "apex" ? 2200 : c.stage === "mature" ? 1600 : 1100;
+    return Math.abs(body.x - (c.anchorX ?? body.x)) < leash;
+  }
+  private hunts = new Map<number, { prey: number; windup: number; recovery: number }>();
+  private clearLine(a: { x: number; y: number }, b: { x: number; y: number }) {
+    return !this.w.platforms.some((p) => !p.oneWay && rayRect(a.x, a.y, b.x - a.x, b.y - a.y, p, 2) !== null);
+  }
+  /** Nearby predators actually approach and strike a physical body. No player damage/proc credit. */
+  private creatureCombat(c: EcoCreature, body: Carrier, dt: number): number | null {
+    const fleeing = [...this.hunts.entries()].find(([id, h]) => h.prey === c.id && this.live.has(id));
+    if (fleeing && c.role === "scavenger") {
+      const attacker = this.live.get(fleeing[0])!;
+      if (distance(attacker, body) < 180 && this.clearLine(attacker, body)) {
+        c.intent = "roam";
+        return body.x + Math.sign(body.x - attacker.x || 1) * 100;
+      }
+    }
+    if (c.role !== "hunter" || c.intent === "consume") return null;
+    let hunt = this.hunts.get(c.id);
+    if (!hunt && c.hunger >= 0.65) {
+      const prey = this.eco.alive.find(
+        (o) =>
+          o.id !== c.id &&
+          o.home !== c.home &&
+          o.role === "scavenger" &&
+          o.stage !== "apex" &&
+          this.live.has(o.id) &&
+          !this.live.get(o.id)!.dead &&
+          Math.abs(o.y - body.y) < 55 &&
+          distance(o, body) < 340 &&
+          this.clearLine(body, this.live.get(o.id)!),
+      );
+      if (prey) {
+        hunt = { prey: prey.id, windup: 0.5, recovery: 0 };
+        this.hunts.set(c.id, hunt);
+      }
+    }
+    if (!hunt) return null;
+    const prey = this.eco.alive.find((o) => o.id === hunt!.prey),
+      target = this.live.get(hunt.prey);
+    if (!prey || !target || target.dead || distance(target, body) > 550 || !this.clearLine(body, target)) {
+      this.hunts.delete(c.id);
+      c.intent = "patrol";
+      return null;
+    }
+    c.intent = "fightCreature";
+    c.target = prey.id;
+    hunt.recovery = Math.max(0, hunt.recovery - dt);
+    if (distance(body, target) > 100) {
+      hunt.windup = 0.5;
+      return target.x;
+    }
+    if (hunt.recovery > 0) return target.x;
+    hunt.windup -= dt;
+    if (hunt.windup <= 0) {
+      const damage = (22 + Math.min(14, c.organs.totalLayers * 2)) / (1 + 0.12 * prey.organs.count("armor"));
+      target.hp = Math.max(0, target.hp - damage);
+      target.flash = 0.16;
+      target.impulseX = Math.sign(target.x - body.x || 1) * 90;
+      prey.hp = target.hp;
+      prey.x = target.x;
+      prey.y = target.y;
+      this.w.juice.beat("wallSlam", target.x, target.y, 0xd1a86d);
+      hunt.windup = 0.5;
+      hunt.recovery = 0.7;
+      if (target.hp <= 0) {
+        c.biomass = Math.min(90, c.biomass + 2.5 + prey.biomass * 0.22);
+        this.eco.refreshStats(c);
+        this.eco.kill(prey, c.name, "creature");
+        target.dead = true;
+        this.hunts.delete(c.id);
+        c.intent = "seekRemains";
+        c.target = null;
+        // Growth is earned by stopping to eat the resulting remains.
+      }
+    }
+    return body.x;
+  }
+
   /** A creature died at the player's hands: it becomes food, which is what feeds the world. */
   onEnemyKilled(carrier: Carrier, ecoId: number) {
     const c = this.eco.creatures.find((o) => o.id === ecoId);
     if (c && c.alive) {
+      this.publishBody(c, carrier);
       this.fedBiomass += c.biomass;
       this.eco.kill(c, "player", "player");
     }
@@ -367,6 +564,80 @@ export class Expedition {
   }
   render(art: Renderer) {
     const g = art.g;
+    for (const l of this.geometry.ladders) {
+      if (l.lock && !this.open.has(l.lock)) continue;
+      g.lineStyle(4, 0x647989);
+      g.lineBetween(l.x - 15, l.top - 35, l.x - 15, l.bottom);
+      g.lineBetween(l.x + 15, l.top - 35, l.x + 15, l.bottom);
+      g.lineStyle(3, 0xa2a9a4);
+      for (let y = l.top - 24; y < l.bottom; y += 22) g.lineBetween(l.x - 15, y, l.x + 15, y);
+    }
+    for (const lift of this.geometry.lifts) {
+      const r = this.w.platforms[lift.index];
+      g.lineStyle(2, 0x687d88, 0.7);
+      g.lineBetween(r.x - 40, lift.top, r.x - 40, lift.bottom);
+      g.lineBetween(r.x + 40, lift.top, r.x + 40, lift.bottom);
+      art.label(
+        `lift-${lift.index}`,
+        r.x - 46,
+        r.y - 40,
+        this.power ? "货梯 · 自动往返" : "货梯 · 等待供电",
+        "#d3c59b",
+        11,
+      );
+    }
+    for (const nest of this.eco.nests) {
+      const y = districtById[nest.district].floor - 16;
+      g.fillStyle(0x4c5750, 0.9);
+      g.fillEllipse(nest.x, y, 56, 20);
+      g.lineStyle(2, 0xa9c69b, 0.65);
+      g.strokeCircle(nest.x, y - 10, 12 + Math.sin(this.time * 2) * 2);
+      art.label(`nest-${nest.id}`, nest.x - 30, y + 12, nest.name, "#a9c69b", 11);
+    }
+    // Food and intentions belong to the ordinary world view, not only F3.
+    for (const r of this.eco.remains) {
+      g.fillStyle(0xb6a588, 0.65);
+      g.fillRect(r.x - 15, r.y + 4, 30, 8);
+      g.lineStyle(2, 0xd5b47c, 0.7);
+      g.lineBetween(r.x - 11, r.y, r.x + 8, r.y + 8);
+    }
+    for (const c of this.eco.alive) {
+      const body = this.live.get(c.id);
+      if (!body) continue;
+      const word =
+        c.intent === "consume"
+          ? "吞噬中"
+          : c.intent === "seekRemains"
+            ? "寻找尸骸"
+            : c.intent === "fightCreature"
+              ? "捕猎"
+              : "";
+      if (c.stage !== "juvenile") {
+        const color = c.stage === "apex" ? "#ff947c" : "#edcb88";
+        art.label(
+          `eco-stage-${c.id}`,
+          body.x - 45,
+          body.y - body.h / 2 - 85,
+          `${c.stage === "apex" ? "APEX" : "成熟精英"} · ${c.name} · ${c.organs.totalLayers} 层`,
+          color,
+          12,
+        );
+        g.lineStyle(2, c.stage === "apex" ? 0xff947c : 0xedcb88, 0.8);
+        g.strokeCircle(body.x, body.y, body.w / 2 + 10);
+      }
+      if (word) art.label(`eco-intent-${c.id}`, body.x - 24, body.y - body.h / 2 - 30, word, "#d5b47c", 11);
+      if (c.intent === "consume") {
+        const pulse = 15 + Math.sin(this.time * 8) * 3;
+        g.lineStyle(2, 0xd5b47c, 0.6);
+        g.strokeCircle(body.x, body.y, pulse);
+      }
+    }
+    for (const gate of this.geometry.gates)
+      if (!this.open.has(gate.lock)) {
+        const r = this.w.platforms[gate.index];
+        g.fillStyle(0xc39155, 1);
+        g.fillRect(r.x - r.w / 2, r.y - r.h / 2, r.w, r.h);
+      }
     // Search piles: a small marker that changes colour with difficulty.
     for (const p of this.piles) {
       if (p.taken) continue;

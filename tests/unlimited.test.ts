@@ -37,20 +37,20 @@ describe("自动拾取与无限收集", () => {
     w.autoCollect();
     expect(w.count("ram")).toBe(1);
   });
-  it("无限模式 28 种全接入，第七种及重复层数都不弹框", () => {
+  it("无限模式 30 种全接入，第七种及重复层数都不弹框", () => {
     const w = new SliceWorld(false, 1, false, true, true);
     for (const [i, id] of organIds.entries())
       w.drops.push({ id: i + 10, x: w.player.x, y: w.player.y, organ: id });
     w.autoCollect();
-    expect(w.slots).toHaveLength(28);
-    expect(w.totalLayers).toBe(28);
-    expect(w.collectedLayers).toBe(28);
+    expect(w.slots).toHaveLength(organIds.length);
+    expect(w.totalLayers).toBe(organIds.length);
+    expect(w.collectedLayers).toBe(organIds.length);
     expect(w.pendingDrop).toBeNull();
     expect(w.drops).toHaveLength(0);
     w.drops.push({ id: 99, x: w.player.x, y: w.player.y, organ: "speed", stacks: 10 });
     w.autoCollect();
     expect(w.count("speed")).toBe(11);
-    expect(w.slots).toHaveLength(28);
+    expect(w.slots).toHaveLength(organIds.length);
   });
   it("无限开箱直接接入，但原六槽仍要求选择", () => {
     const s = sites.find((s) => s.id === "pump-cache")!;
