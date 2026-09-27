@@ -112,3 +112,16 @@ output/             本地产物（截图、快照，不入库）
 
 - `engine/World.ts` 仍带有 0.1–0.4 的器官物理、房间流程逻辑，`SliceWorld` 通过继承复用其中一部分；后续应把当前玩法真正用到的部分下沉、其余删除。
 - 界面用 HTML 字符串拼接（`SliceScene` / `TrainingUI` / `BuildGuide`），长模板行较多。
+
+## 仓库里还有什么
+
+本仓库以玩法原型为主，另有两块**非原型**内容：
+
+| 目录 | 内容 | 归属判断 |
+| --- | --- | --- |
+| `deadcells_pak/` | 死亡细胞逆向（2197 房间 + 35 万帧 sprite 全量解析，`map_report.html` 可视化） | 为关卡生成设计做的**研究参考**，暂留本仓；说明见该目录 README |
+| `art/` | 美术源文件 | 待接入的资产 |
+
+> **PixelBench（AI 2D 资产工作台）已拆为独立仓库** [juemin4-source/pixelbench](https://github.com/juemin4-source/pixelbench)。
+> 工作台是独立工具，游戏只是它服务的一个项目，故不再放在本仓 `art_tools/`。
+
