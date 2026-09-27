@@ -1,3 +1,15 @@
+# 黑日计划 · 工作区 monorepo
+
+| 子项目 | 目录 | 状态 |
+| --- | --- | --- |
+| 永蚀玩法原型 | 仓库根（`src/` + `tests/` + `docs/`） | 开发中（0.11 远征/梯子） |
+| PixelBench 资产工作台 | [`art_tools/`](art_tools/PRD-PixelBench.md) | M1 已交付（PR #1），`python art_tools/bench_server.py` 起服务 :8321 |
+| Dead Cells 逆向 | [`deadcells_pak/`](deadcells_pak/) | 报告完成：2197 房间 + 35 万帧 sprite 全量解析，`map_report.html` 可视化 |
+
+Git/PR 约定见 [`art_tools/PRD-PixelBench.md`](art_tools/PRD-PixelBench.md#git--pr-工作流)。
+
+---
+
 # 永蚀 / Ever Eclipse · 玩法原型
 
 2D 横版搜打撤动作游戏的浏览器玩法原型。Phaser 3 + TypeScript + Vite，纯前端；画面、粒子、音效全部程序生成，无外部美术资源。
