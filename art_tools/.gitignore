@@ -1,0 +1,8 @@
+# PixelBench
+workspaces/
+bench.log
+__pycache__/
+probe_comfy.py
+e2e_export.zip
+test_entity/
+test_entity_norm/
