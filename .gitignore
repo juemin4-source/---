@@ -7,3 +7,8 @@ output/
 deadcells_pak/res_extracted/
 deadcells_pak/*.json
 deadcells_pak/*.log
+
+# 独立用户 mockup 工程，不属于游戏源码
+pixelbench-mockup/
+pixelbench-mockup/node_modules/
+

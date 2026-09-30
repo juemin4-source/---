@@ -8,6 +8,20 @@
 **0.9 重点：打击感与狂热。** 顿帧、慢动作、镜头震动、粒子与尸体击飞；连杀进入狂热档位获得攻速/移速/伤害加成；
 持续命中可破韧打断敌人起手；敌人残血进入处决线。见 [`docs/01_当前规则/0.9_打击感与狂热.md`](docs/01_当前规则/0.9_打击感与狂热.md)。
 
+## 机制武器与规则器官
+
+新增六把机制主武器与十二个规则器官，当前 11 主武器 / 4 副武器 / 42 器官。无尽训练按 B 选择六套新组合；Z/X 直接轮换主武器。见 [本轮规则与兼容边界](docs/01_当前规则/2026-09-28_机制武器与规则器官.md)。浏览器回归：`node scripts/run-browser.mjs scripts/browser/rule-weapons-browser.js`。
+
+## 局外据点 Demo
+
+主菜单或探索结算页点击「据点」，进入独立可行走的安全地图。靠近仓库、训练区、工坊、设施终端与出发气闸按 E。已接入物品保管出售、三项永久训练、三种互斥主武器改造和四项设施。
+
+规则与完成边界见 [局外据点 Demo](docs/01_当前规则/2026-09-27_局外据点Demo.md)。已追加人员救援与学习、制造提炼、两套角色技能、三条互斥分支、吞财箱、星骸和永久工程；规则、操作及尚未完整实现的设计见 [文档玩法补齐 Demo](docs/01_当前规则/2026-09-27_文档玩法补齐Demo.md)。
+
+新增回归：`node scripts/run-browser.mjs scripts/browser/campaign-browser.js`。G 角色技能、T 支援、P 切换器官封装。
+
+浏览器回归：`node scripts/run-browser.mjs scripts/browser/meta-progression-browser.js`。使用隔离存档，不影响玩家进度。
+
 ## 设计依据
 
 唯一设计权威：[`docs/00_设计依据/永蚀设计概述_用户原文.txt`](docs/00_设计依据/永蚀设计概述_用户原文.txt)（工作台 ID 77）。
@@ -124,4 +138,4 @@ output/             本地产物（截图、快照，不入库）
 
 > **PixelBench（AI 2D 资产工作台）已拆为独立仓库** [juemin4-source/pixelbench](https://github.com/juemin4-source/pixelbench)。
 > 工作台是独立工具，游戏只是它服务的一个项目，故不再放在本仓 `art_tools/`。
-
+> 本地 `pixelbench-mockup/` 为独立 mockup 工程，已加入 `.gitignore`，不入库。
