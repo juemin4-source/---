@@ -1,6 +1,10 @@
 import type { DistrictId } from "./ExpeditionMap";
 /** Fixed authored empty spaces. Their union is only compiled into collision; no room is generated. */
 export const stationVoids: readonly (readonly [number, number, number, number])[] = [
+  [820, 1430, 1040, 2200], // Archive service shaft: hand-placed jump landings.
+  [1000, 1320, 1840, 1610], // Records vault, first branch above the workshop.
+  [1750, 1570, 2070, 1823], // Return connection into the filter route.
+  [1040, 1090, 1640, 1332], // Sealed upper library and star relic.
   [100, 2018, 700, 2200], // Safe airlock opens horizontally.
   [620, 2096, 900, 2200],
   [800, 1979, 1510, 2200], // Workshop: full-height work bay.
@@ -36,6 +40,20 @@ export const stationVoids: readonly (readonly [number, number, number, number])[
 
 /** x, walkable surface, width. Individually placed equipment tops and landings. */
 export const stationLedges: readonly (readonly [number, number, number])[] = [
+  [880, 2122, 100],
+  [990, 2044, 100],
+  [880, 1966, 100],
+  [990, 1888, 100],
+  [880, 1810, 100],
+  [990, 1732, 100],
+  [880, 1654, 100],
+  [1010, 1576, 110],
+  [1780, 1688, 110],
+  [1940, 1766, 110],
+  [1120, 1532, 130],
+  [1270, 1454, 130],
+  [1120, 1376, 130],
+  [1410, 1332, 460], // Upper library floor, with western jump entrance.
   [1990, 2200, 160],
   [2160, 2116, 150],
   [1990, 2031, 160],

@@ -1,4 +1,4 @@
-import type { OrganId } from "../config";
+import { organIds, organs, type OrganId } from "../config";
 import type { DistrictId } from "./ExpeditionMap";
 
 export type LootCategory = "sample" | "part" | "supply" | "blueprint" | "heavy";
@@ -109,6 +109,31 @@ export const lootDefs: Record<string, LootDef> = {
     note: "极重：只能走货运路线",
   },
 };
+
+const campaignLoot: [string, string, LootCategory, number, number, number, string][] = [
+  ["batteryCell", "旧式锂电池", "part", 15, 1, 1, "提炼为锂，用于制造与强化"],
+  ["fuelCell", "密封聚变燃料", "part", 80, 2, 1, "提炼为超重氢，用于永久供电"],
+  ["lithium", "提炼锂", "part", 8, 1, 1, "制造材料"],
+  ["deuterium", "超重氢", "part", 30, 1, 1, "永久工程材料"],
+  ["medicalBook", "战地急救基础", "supply", 35, 1, 1, "居民学习医学"],
+  ["pythonBook", "Python 入门", "supply", 40, 1, 1, "居民学习计算研究，也用于无人机制造"],
+  ["fusionBook", "核聚变入门", "supply", 65, 1, 1, "进阶能源工程课程"],
+  ["trainingTicket", "特训券", "supply", 15, 0, 1, "与金币一起兑换养成点"],
+  ["machineTool", "精密机床", "heavy", 180, 12, 4, "工坊高级加工设备"],
+];
+for (const [id, name, category, value, weight, size, note] of campaignLoot)
+  lootDefs[id] = { id, name, category, value, weight, size, note, heavy: category === "heavy" };
+for (const organ of organIds)
+  lootDefs[`sample-${organ}`] = {
+    id: `sample-${organ}`,
+    name: `${organs[organ].name}完整样本`,
+    category: "sample",
+    value: 45,
+    weight: 1,
+    size: 1,
+    organ,
+    note: "带回器官研究站，解锁结构接口",
+  };
 
 export interface LootItem {
   uid: number;

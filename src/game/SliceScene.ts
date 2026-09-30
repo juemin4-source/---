@@ -1,5 +1,12 @@
+import { exoticWeapons } from "./abilities/Content";
+import { finishEducation } from "./meta/CampaignProgress";
+import { people } from "./meta/CampaignContent";
+import { CampWorld } from "./meta/CampWorld";
+import { metaAction, settleMeta } from "./meta/MetaProgression";
+import { hubHTML, hubTabs, type HubTab } from "./meta/MetaUI";
 import Phaser from "phaser";
 import { enemyModuleHints } from "./EnemyCombat";
+import { combatRoles, reinforcementTier } from "./expedition/EnemyRoster";
 import { ARCHETYPES, matchup } from "./expedition/Counters";
 import { expeditionMapHTML } from "./expedition/ExpeditionMapView";
 import { ecologyOverlayHTML } from "./expedition/EcologyOverlay";
@@ -35,6 +42,13 @@ export class SliceScene extends Phaser.Scene {
   keys!: GameKeyboard["keys"];
   edges = new Set<string>();
   save: Save = freshSave();
+  campActive = false;
+  camp = new CampWorld();
+  baseOpen = false;
+  baseTab: HubTab = "overview";
+  baseNotice = "";
+  lastStored = 0;
+  lastCoins = 0;
   started = false;
   paused = false;
   mapOpen = false;
@@ -144,6 +158,10 @@ export class SliceScene extends Phaser.Scene {
       unlimited,
       !training,
     );
+    this.campActive = false;
+    this.world.applyProgress(this.save.meta);
+    if (!training) this.save.meta.campaign.supplies = Math.max(0, this.save.meta.campaign.supplies - 2);
+    this.baseOpen = false;
     this.started = true;
     this.paused = false;
     this.cameras.main.setBounds(0, 0, this.world.width, this.world.height);
@@ -151,12 +169,16 @@ export class SliceScene extends Phaser.Scene {
       training ? 0 : this.world.player.x - 640,
       training ? 0 : this.world.player.y - 400,
     );
+    this.baseScrollX = this.cameras.main.scrollX;
+    this.baseScrollY = this.cameras.main.scrollY;
     this.guideOpen = false;
     this.benchOpen = training;
     this.mapOpen = false;
     this.helpOpen = false;
     this.settled = false;
     this.feedback = "";
+    this.lastStored = 0;
+    this.lastCoins = 0;
     this.save.active = !training;
     this.persist();
     this.synth.unlock();
@@ -183,6 +205,16 @@ export class SliceScene extends Phaser.Scene {
     }
   }
   act(action: string, slot?: string) {
+    if (action === "base-open" && (!this.started || this.world.result)) this.enterCamp();
+    if (action === "base-close") this.baseOpen = false;
+    if (action === "base-leave") this.leaveCamp();
+    if (this.baseOpen && (!this.started || this.world.result)) {
+      if (action === "base-tab" && slot && Object.hasOwn(hubTabs, slot)) this.baseTab = slot as HubTab;
+      if (action.startsWith("meta-") && slot) {
+        this.baseNotice = metaAction(this.save, action.slice(5), slot);
+        this.persist();
+      }
+    }
     const scroll = this.overlay.querySelector(".slice-panel")?.scrollTop ?? 0;
     if (action === "start") this.start(false, this.started && this.world.unlimited);
     if (action === "start-six") this.start();
@@ -240,10 +272,27 @@ export class SliceScene extends Phaser.Scene {
     }
     if (action === "grant" && slot) this.world.grant(slot as OrganId, this.benchStacks);
     if (action === "preset" && slot) this.world.useBuild(slot, this.benchStacks);
+    if (action === "ban-organ" && slot && this.world.expedition && Object.hasOwn(organs, slot)) {
+      const id = slot as OrganId;
+      this.world.expedition.banned.add(id);
+      this.world.expedition.metrics.organsBanned++;
+      this.world.record("organ_ban", id);
+      this.world.slots = this.world.slots.filter((o) => o !== id);
+      delete this.world.stackCounts[id];
+      this.world.syncStats();
+    }
+    if (action === "unban-organ" && slot) {
+      this.world.expedition?.banned.delete(slot as OrganId);
+      this.world.record("organ_unban", slot);
+    }
     if (action === "remove-organ") {
       const id = this.world.slots[Number(slot)];
       this.world.slots.splice(Number(slot), 1);
-      if (id) delete this.world.stackCounts[id];
+      if (id) {
+        delete this.world.stackCounts[id];
+        if (this.world.expedition) this.world.expedition.metrics.organsDiscarded++;
+        this.world.record("organ_discard", id);
+      }
       this.world.syncStats();
     }
     if (action === "clear-build") {
@@ -279,14 +328,34 @@ export class SliceScene extends Phaser.Scene {
       this.resetInput();
       return;
     }
+    this.save.meta.campaign.skillUses[this.world.skills.hero] += this.world.skills.uses;
     this.save.trips++;
     this.save.active = false;
     this.lastReward = this.world.result === "extracted" ? this.world.cargo : 0;
     if (this.world.result === "extracted") {
-      this.save.bank += this.lastReward;
+      const receipt = settleMeta(
+        this.save,
+        this.save.trips,
+        true,
+        this.lastReward,
+        this.world.expedition?.cargo.items ?? [],
+      );
+      this.lastStored = receipt.stored;
+      this.lastCoins = receipt.coins;
       this.save.research = [...new Set([...this.save.research, ...this.world.slots])];
       if (this.world.relay) this.save.shortcut = true;
+      const campaign = this.save.meta.campaign;
+      const limit = campaign.built.includes("housing") ? 8 : 3;
+      for (const id of this.world.expedition?.objectives.rescued() ?? [])
+        if (!campaign.residents.some((r) => r.id === id) && campaign.residents.length < limit)
+          campaign.residents.push({ id, profession: people[id].profession, knowledge: [], studying: null });
     }
+    if (this.world.result === "dead") {
+      settleMeta(this.save, this.save.trips, false, 0, []);
+      this.lastStored = 0;
+      this.lastCoins = 0;
+    }
+    if (this.world.time >= 60) finishEducation(this.save);
     this.persist();
     this.resetInput();
   }
@@ -296,6 +365,9 @@ export class SliceScene extends Phaser.Scene {
       version: "0.10",
       unlimited: this.world.unlimited,
       collectedLayers: this.world.collectedLayers,
+      permanentBenefits: this.world.permanent,
+      ruleAbilities: this.world.rules.snapshot(),
+      settlement: { stored: this.lastStored, coins: this.lastCoins },
       map: ex ? "expedition-ecosystem" : this.world.ascent ? "handcrafted-ascent" : "training",
       trackedBuild: this.world.ascent?.trackedBuild,
       openedSites: ex ? [...ex.open] : this.world.ascent ? [...this.world.ascent.opened] : [],
@@ -349,8 +421,86 @@ export class SliceScene extends Phaser.Scene {
     a.click();
     URL.revokeObjectURL(url);
   }
+  enterCamp() {
+    this.camp = new CampWorld();
+    this.campActive = true;
+    this.baseOpen = false;
+    this.baseNotice = "";
+    this.cameras.main
+      .setBounds(0, 0, this.camp.width, this.camp.height)
+      .setZoom(1)
+      .setRotation(0)
+      .setScroll(0, 0);
+    this.juiceEl.innerHTML = "";
+    this.juiceEl.className = "";
+    this.juiceEl.removeAttribute("style");
+    this.resetInput();
+    this.overlayKey = "";
+  }
+  leaveCamp() {
+    this.campActive = false;
+    this.baseOpen = false;
+    this.cameras.main.setBounds(0, 0, this.world.width, this.world.height);
+    this.resetInput();
+    this.overlayKey = "";
+  }
+  updateCamp(delta: number) {
+    if (this.pressed("ESC")) {
+      if (this.baseOpen) this.baseOpen = false;
+      else {
+        this.leaveCamp();
+        return;
+      }
+      this.resetInput();
+      this.overlayKey = "";
+    }
+    if (!this.baseOpen) {
+      const c = idleControls();
+      c.left = this.keys.A.isDown;
+      c.right = this.keys.D.isDown;
+      c.jump = this.pressed("SPACE");
+      c.jumpHeld = this.keys.SPACE.isDown;
+      c.mx = this.camp.player.x + (c.left ? -100 : 100);
+      c.my = this.camp.player.y;
+      this.accumulator += Math.min(delta / 1000, 0.05);
+      while (this.accumulator >= 1 / 120) {
+        this.camp.step(1 / 120, c);
+        c.jump = false;
+        this.accumulator -= 1 / 120;
+      }
+      if (this.pressed("E")) {
+        const station = this.camp.station();
+        if (station) {
+          this.baseTab = station.tab;
+          this.baseNotice = "";
+          this.baseOpen = true;
+          this.overlayKey = "";
+          this.resetInput();
+        }
+      }
+    } else {
+      this.accumulator = 0;
+      this.edges.clear();
+    }
+    const cam = this.cameras.main;
+    cam.setScroll(
+      Phaser.Math.Linear(
+        cam.scrollX,
+        Phaser.Math.Clamp(this.camp.player.x - 640, 0, this.camp.width - 1280),
+        0.12,
+      ),
+      0,
+    );
+    this.camp.draw(this.art, this.save.meta);
+    this.hud.innerHTML = `<div class="camp-hud"><b>沉井据点 · 安全区域</b><span>${Math.floor(this.save.bank)} 金币</span><small>A / D 移动 · Space 跳跃 · 靠近设施按 E · Esc 返回</small><p>仓库 → 训练区 → 工坊 → 设施 → 气闸 → 居民区 → 商店</p></div>`;
+    this.refreshOverlay();
+  }
   update(_time: number, delta: number) {
     if (!this.keys) return;
+    if (this.campActive) {
+      this.updateCamp(delta);
+      return;
+    }
     if (this.pressed("M")) this.synth.muted = !this.synth.muted;
     if (this.pressed("ESC") && this.started && !this.world.result) {
       if (this.world.pendingDrop) {
@@ -434,12 +584,33 @@ export class SliceScene extends Phaser.Scene {
       ["ONE", "TWO", "THREE", "FOUR", "FIVE"].forEach((key, i) => {
         if (this.pressed(key)) this.world.armory.switchPrimary((Object.keys(weapons) as WeaponId[])[i]);
       });
+      const previousWeapon = this.pressed("Z"),
+        nextWeapon = this.pressed("X");
+      if (previousWeapon || nextWeapon) {
+        const choices = (Object.keys(weapons) as WeaponId[]).filter(
+          (id) => !this.world.availableWeapons || this.world.availableWeapons.includes(id),
+        );
+        const i = choices.indexOf(this.world.armory.primary);
+        if (choices.length)
+          this.world.armory.switchPrimary(
+            choices[(i + (previousWeapon ? -1 : 1) + choices.length) % choices.length],
+          );
+      }
       ["SIX", "SEVEN", "EIGHT", "NINE"].forEach((key, i) => {
         if (this.pressed(key))
           this.world.armory.switchSecondary((Object.keys(secondaries) as SecondaryId[])[i]);
       });
       this.world.player.platformDrop = this.keys.S.isDown && !this.world.player.climbing;
+      if (this.pressed("G")) this.world.skills.activate();
+      if (this.pressed("T")) this.world.skills.support();
       if (this.pressed("H")) this.world.heal();
+      if (this.pressed("P") && this.world.expedition) {
+        const objectives = this.world.expedition.objectives;
+        objectives.packing = !objectives.packing;
+        this.world.say(
+          objectives.packing ? "封装模式：停止自动吸收，靠近器官按 E 封装；P 恢复" : "自动吸收已恢复",
+        );
+      }
       if (this.pressed("E")) {
         this.world.interact();
         if (this.world.pendingDrop) this.resetInput();
@@ -456,6 +627,15 @@ export class SliceScene extends Phaser.Scene {
       this.accumulator = 0;
       this.edges.clear();
       this.pending = idleControls();
+    }
+    const foundStars = this.world.expedition?.objectives.newStars.splice(0) ?? [];
+    if (foundStars.length) {
+      for (const id of foundStars)
+        if (!this.save.meta.campaign.stars.includes(id)) {
+          this.save.meta.campaign.stars.push(id);
+          this.save.meta.campaign.points++;
+        }
+      this.persist();
     }
     this.settle();
     const juice = this.world.juice;
@@ -544,8 +724,36 @@ export class SliceScene extends Phaser.Scene {
       g.strokeRect(chest.x - 18, 574, 36, 36);
       this.art.label("slice-chest", chest.x - 55, 551, `${chest.name} +${chest.value}`, "#d5d4aa", 12);
     }
+    for (const mine of w.hostile.mines) {
+      g.lineStyle(2, mine.fuse === null ? 0xffbb55 : 0xff5544, 0.8);
+      g.strokeCircle(mine.x, mine.y, mine.fuse === null ? 12 : 115);
+      g.fillStyle(0xffbb55);
+      g.fillRect(mine.x - 9, mine.y - 4, 18, 8);
+    }
     for (const e of w.enemies)
-      if (!e.dead) {
+      if (!e.dead && !e.rigPart) {
+        if (e.combatRole) {
+          const role = combatRoles[e.combatRole];
+          this.art.label(
+            `role-${e.id}`,
+            e.x - 35,
+            e.y - e.h / 2 - 47,
+            `${e.combatTier >= 2 ? "精英·" : ""}${role.name}`,
+            "#" + role.color.toString(16),
+            14,
+          );
+          g.lineStyle(3, role.color, 0.9);
+          if (e.combatRole === "sentinel") g.strokeRect(e.x + e.chargeDirection * 25 - 5, e.y - 24, 10, 48);
+          if (e.combatRole === "medic") {
+            g.lineBetween(e.x - 9, e.y - 32, e.x + 9, e.y - 32);
+            g.lineBetween(e.x, e.y - 41, e.x, e.y - 23);
+          }
+          if (e.combatRole === "sniper" && e.windup > 0) g.lineBetween(e.x, e.y, e.aimX, e.aimY);
+          if (e.combatRole === "charger") {
+            g.lineBetween(e.x - 20, e.y - 18, e.x - 9, e.y - 30);
+            g.lineBetween(e.x + 20, e.y - 18, e.x + 9, e.y - 30);
+          }
+        }
         const o = organs[e.organ],
           c = parseInt(o.color.slice(1), 16);
         g.fillStyle(c);
@@ -595,7 +803,7 @@ export class SliceScene extends Phaser.Scene {
             e.y + e.h / 2 + 18,
             e.organs
               .ids()
-              .map((id) => enemyModuleHints[id])
+              .map((id) => enemyModuleHints[id] ?? "实验器官：可回收，敌方未启用此规则")
               .join(" · "),
             "#c7b5a3",
             10,
@@ -790,6 +998,9 @@ export class SliceScene extends Phaser.Scene {
     }
     w.ascent?.render(this.art);
     w.expedition?.render(this.art);
+    w.skills.render(this.art);
+    w.rules.render(this.art);
+    w.rigBoss.render(this.art);
     renderJuice(this.art, w.juice, w.time);
     // Frenzy halo around the player: an at-a-glance read of how hot the streak is.
     const tier = w.juice.tier;
@@ -848,7 +1059,7 @@ export class SliceScene extends Phaser.Scene {
     const district = ex ? expeditionDistricts.find((d) => d.id === ex.district) : undefined;
     const target = w.ascent ? nextBuildTarget(w, w.ascent.trackedBuild) : null;
     const guide = ex
-      ? `<div class="build-tracker"><b>${district?.name ?? ex.district}</b> · 威胁 ${ex.eco.threatLabel()}<br>货物 ${ex.cargo.value} 价值 / ${ex.cargo.weight} 重量 / ${ex.cargo.size}格${
+      ? `<div class="build-tracker"><b>${district?.name ?? ex.district}</b> · 威胁 ${ex.eco.threatLabel()} · 增援 ${reinforcementTier(ex.eco.time) + 1} 档<br>货物 ${ex.cargo.value} 价值 / ${ex.cargo.weight} 重量 / ${ex.cargo.size}格${
           ex.heavy ? ` <span class="warn">重型·移动变慢</span>` : ""
         }<br>${ex.power ? "货运站已供电" : "货运站未供电"} · 已搜 ${ex.metrics.searchesCompleted}/${ex.piles.length} · F3 生态</div>`
       : w.ascent
@@ -867,12 +1078,14 @@ export class SliceScene extends Phaser.Scene {
             ? `${a.rhythmFeedback} · +${a.rhythmStacks * 20}% · 节拍 ${a.rhythmRemaining.toFixed(2)}s`
             : a.primary === "hammer"
               ? `连段 ${a.combo + 1}/3 · 第三段重击`
-              : `${"▰".repeat(w.ammo)}${"▱".repeat(5 - w.ammo)} 第五发重击`;
+              : Object.hasOwn(exoticWeapons, a.primary)
+                ? weapons[a.primary].hint
+                : `${"▰".repeat(w.ammo)}${"▱".repeat(5 - w.ammo)} 第五发重击`;
     this.hud.innerHTML = `<header class="slice-top"><div><b>永蚀<span>EVER ECLIPSE</span></b><small>${w.training ? (w.unlimited ? "无限槽训练 / 0.10" : "六槽训练 / 0.10") : w.unlimited ? "活生态 · 无限槽 / 0.10" : "活生态 · 六槽 / 0.10"}</small></div><div class="slice-cargo">${w.training ? "累计击杀" : "携带价值"} <strong>${w.training ? w.stats.kills : (ex?.cargo.value ?? w.cargo)}</strong><small>${w.training ? "B 训练台 · 1–9 武器" : ex ? `${ex.cargo.size}/${ex.cargo.capacity} 格 · 死亡全部丢失` : "死亡全部丢失"}</small></div><div class="slice-clock">${t}<small>${this.synth.muted ? "声音关闭" : "M 静音"} · Esc 暂停</small></div></header>
       <div class="slice-zone"><small>${ex ? "九号泵站 / 上行探索" : w.ascent ? "沉井 → 地表 / 上行探索" : w.zone.subtitle}</small><h2>${w.training ? `第 ${w.wave} 波 · 持续增压` : (district?.name ?? w.ascent?.title ?? w.zone.name)}</h2><span>${w.training ? `敌人生命 ×${number(w.enemyHealthScale())} · 场上 ${w.enemies.filter((e) => !e.dead).length}` : ex ? "Tab 查看已发现路线" : w.ascent ? `已上行 ${Math.max(0, Math.round((3096 - p.y) / 40))}m · Tab 剖面地图` : w.zone.risk ? "危险 " + "◆".repeat(w.zone.risk) : "安全区"}</span><p class="combat-readout">5 秒 DPS <b>${number(w.dps)}</b><br>撞墙 ${w.metrics.wallCharges} · 传导 ${w.metrics.transmissions}<br>冻结 ${w.metrics.freezes} · 碎冰 ${w.metrics.shatters}</p></div>
-      ${guide}<div class="slice-vitals"><div>生命 <b>${Math.ceil(p.hp)} / ${p.maxHp} ${w.shield > 0 ? `＋盾 ${number(w.shield)}` : ""}</b></div><div class="slice-health"><i style="width:${(p.hp / p.maxHp) * 100}%"></i></div><div>充能 <b>${w.energy} / ${w.energyMax}</b></div><small>体质 ${w.vitalityLevel} · 下一级 ${6 - (w.collectedLayers % 6)} 层 · 模块生命 +${10 * w.count("leech") + 20 * w.count("vitality")} · 护甲 ${12 * w.count("armor")}</small><small>体力 ${Math.round(w.stamina)} / 100　热量 ${Math.round(w.heat)} / 100</small><div class="resource-meter"><i style="width:${w.heat}%;background:${w.overheated ? "#ff687d" : "#d5a86b"}"></i></div><small>${weapons[a.primary].name}</small><small>${weaponStatus}</small><small>${secondaries[a.secondary].name} · ${w.grenadeCooldown > 0 ? w.grenadeCooldown.toFixed(1) + "s" : "就绪"}</small><small>H 治疗 ×${w.medkits} ${a.secondary === "drone" ? ` · 无人机储备 ${a.droneStock}` : ""}</small></div>
+      ${guide}<div class="slice-vitals"><div>生命 <b>${Math.ceil(p.hp)} / ${p.maxHp} ${w.shield > 0 ? `＋盾 ${number(w.shield)}` : ""}</b></div><div class="slice-health"><i style="width:${(p.hp / p.maxHp) * 100}%"></i></div><div>充能 <b>${w.energy} / ${w.energyMax}</b></div><small>体质 ${w.vitalityLevel} · 下一级 ${6 - (w.collectedLayers % 6)} 层 · 模块生命 +${10 * w.count("leech") + 20 * w.count("vitality")} · 护甲 ${12 * w.count("armor")}</small><small>体力 ${Math.round(w.stamina)} / 100　热量 ${Math.round(w.heat)} / 100</small><div class="resource-meter"><i style="width:${w.heat}%;background:${w.overheated ? "#ff687d" : "#d5a86b"}"></i></div><small>${weapons[a.primary].name}</small><small>${weaponStatus}</small><small>${secondaries[a.secondary].name} · ${w.grenadeCooldown > 0 ? w.grenadeCooldown.toFixed(1) + "s" : "就绪"}</small><small>G 技能 ${Math.ceil(w.skills.cooldown)}s · T 支援 ${Math.ceil(w.skills.supportCooldown)}s</small><small>P · ${w.expedition?.objectives.packing ? "封装模式：靠近器官按 E" : "自动吸收"}</small><small>H 治疗 ×${w.medkits} ${a.secondary === "drone" ? ` · 无人机储备 ${a.droneStock}` : ""}</small></div>
       <div class="slice-message">${w.messageTime > 0 ? escape(w.message) : ""}</div><div class="slice-prompt">${n?.label ?? ""}</div>
-      <footer class="slice-bottom">${w.unlimited ? `<div class="collection-count">${w.slots.length} 种 · ${w.totalLayers} 层 · 靠近自动接入 · B 查看全部效果</div>` : ""}<div class="slice-slots ${w.unlimited ? "unlimited-slots" : ""}">${Array.from({ length: w.unlimited ? Math.max(1, w.slots.length) : 6 }, (_, i) => this.slotCard(w.slots[i], i)).join("")}</div><div class="slice-controls">A D 移动 · W/S 爬梯 · Space 跳跃/蹬墙 · Shift 冲刺 · F 下砸 | 左键主武器 · Q 副武器 · 右键盾 · H 治疗 | 1–9 换武器 · B 配装台 · E 接入</div></footer>`;
+      <footer class="slice-bottom">${w.unlimited ? `<div class="collection-count">${w.slots.length} 种 · ${w.totalLayers} 层 · ${ex?.objectives.packing ? "封装模式" : "靠近自动接入"} · B 查看全部效果</div>` : ""}<div class="slice-slots ${w.unlimited ? "unlimited-slots" : ""}">${Array.from({ length: w.unlimited ? Math.max(1, w.slots.length) : 6 }, (_, i) => this.slotCard(w.slots[i], i)).join("")}</div><div class="slice-controls">A D 移动 · W/S 爬梯 · Space 跳跃/蹬墙 · Shift 冲刺 · F 下砸 | 左键主武器 · Q 副武器 · 右键盾 · H 治疗 | 1–9 直选 · Z/X 轮换主武器 · B 配装台 · E 交互</div></footer>`;
   }
   panel(body: string, wide = false) {
     return `<section class="slice-panel ${wide ? "wide" : ""}">${body}</section>`;
@@ -914,33 +1127,43 @@ export class SliceScene extends Phaser.Scene {
   }
   refreshOverlay() {
     const w = this.world;
-    const state = !this.started
-      ? "intro"
-      : w.result
-        ? w.result
-        : w.pendingDrop
-          ? `drop-${w.pendingDrop.id}`
-          : this.guideOpen
-            ? "guide"
-            : this.benchOpen
-              ? "bench"
-              : this.ecoOpen && w.expedition
-                ? "eco"
-                : this.mapOpen
-                  ? "map"
-                  : this.helpOpen
-                    ? "help"
-                    : this.paused
-                      ? "pause"
-                      : "";
+    const state = this.baseOpen
+      ? "base"
+      : this.campActive
+        ? ""
+        : !this.started
+          ? "intro"
+          : w.result
+            ? w.result
+            : w.pendingDrop
+              ? `drop-${w.pendingDrop.id}`
+              : this.guideOpen
+                ? "guide"
+                : this.benchOpen
+                  ? "bench"
+                  : this.ecoOpen && w.expedition
+                    ? "eco"
+                    : this.mapOpen
+                      ? "map"
+                      : this.helpOpen
+                        ? "help"
+                        : this.paused
+                          ? "pause"
+                          : "";
     // Visibility must update even when a handler has invalidated the cached signature to "".
     this.overlay.hidden = !state;
     if (state === this.overlayKey) return;
     this.overlayKey = state;
     if (!state) return;
-    if (state === "intro") {
+    if (state === "base") {
       this.overlay.innerHTML = this.panel(
-        `<div class="slice-eyebrow">EVER ECLIPSE / 0.10</div><h1 class="slice-title">永蚀<span>器官猎场</span></h1><p class="slice-lead">猎取敌人的能力。<br>拼出你的组合，决定何时带它们回家。</p><div class="slice-intro-grid"><div><small>01 / 猎取</small><b>看清携带者</b><p>敌人头顶标出器官。无限版击杀后走近自动接入，同类效果叠加。</p></div><div><small>02 / 组合</small><b>改变战斗方式</b><p>撞墙积攒充能，或用印记连接敌群。同类靠近自动叠层。无限版可同时接入所有类型；六槽版保留取舍。</p></div><div><small>03 / 撤离</small><b>活着带回收获</b><p>任何时候都能返回气闸。死亡丢失本局收获；从上方接通升降台，缩短回程。</p></div></div><button class="slice-primary" data-action="start-unlimited">无限收集 · 进入沉井<span>∞</span></button><button class="slice-secondary" data-action="start-six">六槽探索 · 对照版本<span>↑</span></button><p class="slice-muted">无限版：所有地面器官靠近自动接入，包含有代价的模块；巢穴繁殖、尸骸吞噬与器官继承改变地图上的危险。六槽版：仅已装的同类自动拾取。</p><button class="slice-secondary" data-action="train-unlimited">无尽训练 · 无限槽<span>∞</span></button><button class="slice-secondary" data-action="train">无尽训练 · 六槽<span>↗</span></button><p class="slice-muted">A D 移动 · W/S 爬梯 · Space 跳跃/蹬墙 · 左键射击 · Shift 冲刺 · E 交互 · Tab 地图 · R 推荐 build<br>九件武器 · B 武器配装台 · 当前档案：${this.save.research.length}/${organIds.length} 器官 · 已带回 ${this.save.bank} 样本 · 上方通电解锁本趟升降台</p>${this.interrupted ? '<p class="slice-notice">上一趟出行中断，未结算收获已丢失。已带回的进度仍保留。</p>' : ""}<p class="slice-notice">${this.storageWarning}</p>`,
+        hubHTML(this.save, this.baseTab, this.baseNotice, this.campActive) +
+          `<p class="slice-notice">${this.storageWarning}</p>`,
+        true,
+      );
+    } else if (state === "intro") {
+      this.overlay.innerHTML = this.panel(
+        `<div class="slice-eyebrow">EVER ECLIPSE / 0.10</div><h1 class="slice-title">永蚀<span>器官猎场</span></h1><p class="slice-lead">猎取敌人的能力。<br>拼出你的组合，决定何时带它们回家。</p><div class="slice-intro-grid"><div><small>01 / 猎取</small><b>看清携带者</b><p>敌人头顶标出器官。无限版击杀后走近自动接入，同类效果叠加。</p></div><div><small>02 / 组合</small><b>改变战斗方式</b><p>撞墙积攒充能，或用印记连接敌群。同类靠近自动叠层。无限版可同时接入所有类型；六槽版保留取舍。</p></div><div><small>03 / 撤离</small><b>活着带回收获</b><p>任何时候都能返回气闸。死亡丢失本局收获；从上方接通升降台，缩短回程。</p></div></div><button class="slice-secondary" data-action="base-open">据点 · 仓库 / 训练 / 研究 / 设施</button><button class="slice-primary" data-action="start-unlimited">无限收集 · 进入沉井<span>∞</span></button><button class="slice-secondary" data-action="start-six">六槽探索 · 对照版本<span>↑</span></button><p class="slice-muted">无限版：所有地面器官靠近自动接入，包含有代价的模块；巢穴繁殖、尸骸吞噬与器官继承改变地图上的危险。六槽版：仅已装的同类自动拾取。</p><button class="slice-secondary" data-action="train-unlimited">无尽训练 · 无限槽<span>∞</span></button><button class="slice-secondary" data-action="train">无尽训练 · 六槽<span>↗</span></button><p class="slice-muted">A D 移动 · W/S 爬梯 · Space 跳跃/蹬墙 · 左键射击 · Shift 冲刺 · E 交互 · Tab 地图 · G 角色技能 · T 支援 · P 封装模式<br>十五件武器 · B 武器配装台 · 当前档案：${this.save.research.length}/${organIds.length} 器官 · 可用 ${Math.floor(this.save.bank)} 金币 · 上方通电解锁本趟升降台</p>${this.interrupted ? '<p class="slice-notice">上一趟出行中断，未结算收获已丢失。已带回的进度仍保留。</p>' : ""}<p class="slice-notice">${this.storageWarning}</p>`,
         true,
       );
     } else if (w.result && w.training) {
@@ -952,7 +1175,7 @@ export class SliceScene extends Phaser.Scene {
       const win = w.result === "extracted",
         m = w.metrics;
       this.overlay.innerHTML = this.panel(
-        `<div class="slice-eyebrow">${win ? "EXTRACTION COMPLETE" : "SIGNAL LOST"}</div><h1>${win ? "带回来了。" : "这次，没能回来。"}</h1><p>${win ? `本次带回 ${this.lastReward} 样本，已接入的器官记入研究档案。下次六槽重新开始。` : `本局 ${w.cargo} 样本与器官已失去，之前带回的进度保留。`}</p>${win && w.relay ? '<p class="slice-notice">运输回路图已归档：下一趟可从气闸直达运输枢纽。</p>' : ""}<div class="slice-results"><div><b>${Math.floor(w.time / 60)}:${Math.floor(
+        `<div class="slice-eyebrow">${win ? "EXTRACTION COMPLETE" : "SIGNAL LOST"}</div><h1>${win ? "带回来了。" : "这次，没能回来。"}</h1><p>${win ? `本次带回价值 ${this.lastReward}：${this.lastStored} 件物品已入库，另获 ${this.lastCoins} 金币。器官记入档案；下一趟重新收集。` : `本局 ${w.cargo} 样本与器官已失去，之前带回的进度保留。`}</p>${win && w.relay ? '<p class="slice-notice">运输回路图已归档：下一趟可从气闸直达运输枢纽。</p>' : ""}<div class="slice-results"><div><b>${Math.floor(w.time / 60)}:${Math.floor(
           w.time % 60,
         )
           .toString()
@@ -968,7 +1191,7 @@ export class SliceScene extends Phaser.Scene {
           )
           .join(
             " → ",
-          )}<br>当前档案 ${this.save.research.length}/${organIds.length} · 累计带回 ${this.save.bank} 样本（本轮用作收益记录，尚无商店）</p><label class="slice-feedback-label" for="slice-feedback">这次为什么撤离 / 死亡？哪个模块改变了打法？还想再来一局吗？</label><textarea id="slice-feedback" placeholder="记录你的真实感受；导出时与路线、触发次数一起保存。"></textarea><div class="slice-actions"><button class="slice-primary" data-action="start">再出发 <span>↗</span></button><button class="slice-secondary" data-action="export">导出本局试玩记录</button></div><p class="slice-notice">${this.storageWarning}</p>`,
+          )}<br>当前档案 ${this.save.research.length}/${organIds.length} · 可用 ${Math.floor(this.save.bank)} 金币 · 据点可出售物资、训练和研究改造<br>安置居民 ${this.save.meta.campaign.residents.length} 人 · 已收集星骸 ${this.save.meta.campaign.stars.length}/3</p><label class="slice-feedback-label" for="slice-feedback">这次为什么撤离 / 死亡？哪个模块改变了打法？还想再来一局吗？</label><textarea id="slice-feedback" placeholder="记录你的真实感受；导出时与路线、触发次数一起保存。"></textarea><div class="slice-actions"><button class="slice-primary" data-action="base-open">返回据点 · 整理与成长</button><button class="slice-secondary" data-action="start">再出发 <span>↗</span></button><button class="slice-secondary" data-action="export">导出本局试玩记录</button></div><p class="slice-notice">${this.storageWarning}</p>`,
         true,
       );
     } else if (w.pendingDrop) {
@@ -983,6 +1206,9 @@ export class SliceScene extends Phaser.Scene {
     else if (state === "bench")
       this.overlay.innerHTML = this.panel(
         trainingPanel(w, this.benchStacks) +
+          (w.expedition
+            ? `<section><h2>本局器官拒收</h2>${w.slots.map((id) => `<button class="slice-secondary" data-action="ban-organ" data-slot="${id}">拒收 ${organs[id].name}</button>`).join("")}${[...w.expedition.banned].map((id) => `<button class="slice-secondary" data-action="unban-organ" data-slot="${id}">解除拒收 ${organs[id].name}</button>`).join("")}<p>P 切换封装模式，靠近掉落按 E 封装为可带回的样本。</p></section>`
+            : "") +
           (w.expedition
             ? `<section><h2>携带货物</h2><p>放下的货物保留在脚下，可重新按住 E 拾取。</p>${
                 w.expedition.cargo.items

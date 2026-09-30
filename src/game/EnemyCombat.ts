@@ -50,7 +50,7 @@ interface EnemyShot {
   hitPlayer: boolean;
   hits: Set<number>;
 }
-export const enemyModuleHints: Record<OrganId, string> = {
+export const enemyModuleHints: Partial<Record<OrganId, string>> = {
   vitality: "每层增加 20 生命",
   armor: "每层 12 护甲，递减减伤",
   ram: "冲锋接触造成伤害",
@@ -90,6 +90,7 @@ export class EnemyCombat {
   nextUnit = 1;
   bombs: { x: number; y: number; vx: number; vy: number; life: number; owner: Carrier }[] = [];
   warnings: { x: number; y: number; radius: number; life: number }[] = [];
+  mines: { x: number; y: number; age: number; fuse: number | null; owner: Carrier }[] = [];
   /** Enemy-side combo counters: proof that multi-organ chains actually fire. */
   chains = { wallCharges: 0, dischargeHeavies: 0, heavyAreas: 0, conducts: 0 };
   constructor(public w: SliceWorld) {}
@@ -390,6 +391,21 @@ export class EnemyCombat {
     }
     if (k.support <= 0 && distance(e, w.player) < 650 && w.canSee(e, w.player)) {
       k.support = 6;
+      if (
+        e.combatRole === "miner" &&
+        this.mines.filter((m) => m.owner === e).length < 3 &&
+        this.mines.length < 18
+      ) {
+        this.mines.push({ x: e.x, y: e.y + e.h / 2 - 5, age: 0, fuse: null, owner: e });
+      }
+      if (e.combatRole === "medic") {
+        for (const ally of w.enemies
+          .filter((a) => a !== e && !a.dead && distance(a, e) < 240 && w.canSee(e, a))
+          .slice(0, 3)) {
+          this.heal(ally, Math.min(24, ally.maxHp * 0.08));
+          w.emit("phase", ally.x, ally.y, 0x72dbb2);
+        }
+      }
       if (e.secondary === "grenade") {
         const dx = clamp(w.player.x - e.x, -350, 350);
         this.bombs.push({ x: e.x, y: e.y - 10, vx: dx / 0.8, vy: -230, life: 0.8, owner: e });
@@ -428,6 +444,25 @@ export class EnemyCombat {
     }
   }
   update(dt: number) {
+    for (const mine of this.mines) {
+      if (mine.owner.dead) continue;
+      mine.age += dt;
+      if (
+        mine.age > 0.8 &&
+        mine.fuse === null &&
+        distance(mine, this.w.player) < 100 &&
+        this.w.canSee(mine, this.w.player)
+      )
+        mine.fuse = 0.7;
+      else if (mine.fuse !== null) {
+        mine.fuse -= dt;
+        if (mine.fuse <= 0) {
+          this.blast(mine.owner, mine.x, mine.y - 12, 22, 115, true);
+          mine.age = 20;
+        }
+      }
+    }
+    this.mines = this.mines.filter((m) => m.age < 14 && !m.owner.dead);
     for (const st of [this.playerStatus, ...this.unitStatuses.values()]) {
       st.mark = Math.max(0, st.mark - dt);
       st.frozen = Math.max(0, st.frozen - dt);

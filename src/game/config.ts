@@ -1,3 +1,4 @@
+import { ruleOrgans, exoticWeapons } from "./abilities/Content";
 import type { EnemyKind } from "../engine/Enemy";
 import type { Rect } from "../engine/PhysicsHelpers";
 
@@ -184,6 +185,7 @@ export const organs = {
     color: "#b7a4ed",
     description: "一次近战、穿透射击或爆炸命中多个目标时，每个额外目标使伤害每层提高 15%。",
   },
+  ...ruleOrgans,
 } as const;
 export type OrganId = keyof typeof organs;
 export const organIds = Object.keys(organs) as OrganId[];
@@ -193,6 +195,7 @@ export const weapons = {
   sniper: { name: "SR-P3 贯穿狙击枪", hint: "点按普通弹；按住蓄力，松开贯穿重击", key: "3" },
   dagger: { name: "CQC-R4 节律匕首", hint: "跟随节奏点按；正确 +20% 伤害，最高 +300%；没有重击", key: "4" },
   hammer: { name: "HM-03 重锤", hint: "三连段，第三段范围重击；攻击消耗体力", key: "5" },
+  ...exoticWeapons,
 } as const;
 export type WeaponId = keyof typeof weapons;
 export const secondaries = {
@@ -206,6 +209,32 @@ export const builds: Record<
   string,
   { name: string; ids: OrganId[]; weapon: WeaponId; secondary: SecondaryId }
 > = {
+  recoilReturn: {
+    name: "逆冲交叉火力",
+    ids: ["returnMembrane", "mirrorEye", "split"],
+    weapon: "recoil",
+    secondary: "shield",
+  },
+  pullWeb: {
+    name: "捕鲸缝合网",
+    ids: ["stitch", "polarity", "battery"],
+    weapon: "harpoon",
+    secondary: "grenade",
+  },
+  returnDebt: { name: "回航收债", ids: ["debt", "mark", "conduit"], weapon: "blade", secondary: "grenade" },
+  magnetic: {
+    name: "磁钉吸附阵",
+    ids: ["vacuum", "freeze", "heavyArea"],
+    weapon: "nail",
+    secondary: "grenade",
+  },
+  riftGarden: { name: "裂隙尸殖", ids: ["corpse", "spread", "mark"], weapon: "rift", secondary: "turret" },
+  mobileNest: {
+    name: "寄生移巢",
+    ids: ["parasite", "relocate", "refract", "shell"],
+    weapon: "gravity",
+    secondary: "turret",
+  },
   wall: {
     name: "撞墙放电",
     ids: ["ram", "battery", "discharge", "knock", "stunRegen", "heavyArea"],

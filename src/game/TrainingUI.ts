@@ -1,3 +1,4 @@
+import { exoticWeapons, ruleOrgans } from "./abilities/Content";
 import { builds, organs, organIds, weapons, secondaries } from "./config";
 import type { OrganId } from "./config";
 import type { SliceWorld } from "./SliceWorld";
@@ -55,7 +56,10 @@ export function stackEffect(id: OrganId, n: number, exploration = false) {
     heavyArea: `范围伤害 ${35 + 15 * (n - 1)}% / 半径 ${105 + 35 * n}`,
     slam: `高度增幅 ×${n}`,
   };
-  return effects[id] ?? `效果 ×${n}`;
+  return (
+    effects[id] ??
+    (Object.hasOwn(ruleOrgans, id) ? `规则层数 ${raw} · 按说明改变行为，上限保护衍生实体` : `效果 ×${n}`)
+  );
 }
 export function trainingPanel(w: SliceWorld, amount: number) {
   const select = (id: string, values: Record<string, { name: string }>, current: string) =>
@@ -65,8 +69,8 @@ export function trainingPanel(w: SliceWorld, amount: number) {
   return `<div class="bench-top"><div><div class="slice-eyebrow">${w.training ? "ENDLESS TRAINING" : "FIELD ARMORY"} / 当前暂停</div><h1>训练与配装台</h1></div><button class="slice-primary" data-action="resume">继续战斗 <span>B / Esc</span></button></div>
   <p>九件武器快捷键 1–9。${w.unlimited ? "无限收集：所有模块靠近自动接入，不限种类，下面可查看全部效果。" : "同类靠近自动叠层；六槽限制的是不同种类。"}</p>
   <div class="bench-settings"><label>主武器${select("bench-primary", weapons, w.armory.primary)}</label><label>副武器${select("bench-secondary", secondaries, w.armory.secondary)}</label>
-  ${w.training ? `<label>敌人主武器${select("bench-enemy-weapon", { auto: { name: "按种类配置" }, ...weapons }, w.trainingWeapon)}</label><label>敌人副武器${select("bench-enemy-secondary", { none: { name: "无副武器" }, ...secondaries }, w.trainingSecondary)}</label><label>刷怪种类${select("bench-kind", { mixed: { name: "混合生态" }, crawler: { name: "近战爬行者" }, reclaimer: { name: "冲锋回收者" }, floater: { name: "浮游射手" }, elite: { name: "母体 Boss" } }, w.trainingKind)}</label><label>起始生命倍率<input id="bench-health" type="number" min="1" max="1000" value="${w.trainingHealth}"></label><label>每波数量<input id="bench-count" type="number" min="1" max="24" value="${w.trainingCount}"></label><label>设定波次<input id="bench-wave" type="number" min="1" max="100" value="${Math.max(1, w.wave)}"></label><label>指定掉落${select("bench-organ", { cycle: { name: `${organIds.length} 种轮换` }, ...organs }, w.trainingOrgan)}</label><label class="bench-check"><input id="bench-auto" type="checkbox" ${w.trainingAuto ? "checked" : ""}>持续增压刷怪</label>` : ""}</div>
-  <p class="slice-muted">${weapons[w.armory.primary].hint} · ${secondaries[w.armory.secondary].hint}<br>当前层数会实际改变数值；非线性效果和触发阈值见每张卡片。训练的资源与构筑不写入探索档案。</p>
+  ${w.training ? `<label>敌人主武器${select("bench-enemy-weapon", { auto: { name: "按种类配置" }, ...Object.fromEntries(Object.entries(weapons).filter(([id]) => !Object.hasOwn(exoticWeapons, id))) }, w.trainingWeapon)}</label><label>敌人副武器${select("bench-enemy-secondary", { none: { name: "无副武器" }, ...secondaries }, w.trainingSecondary)}</label><label>刷怪种类${select("bench-kind", { mixed: { name: "混合生态" }, crawler: { name: "近战爬行者" }, reclaimer: { name: "冲锋回收者" }, floater: { name: "浮游射手" }, elite: { name: "母体 Boss" } }, w.trainingKind)}</label><label>起始生命倍率<input id="bench-health" type="number" min="1" max="1000" value="${w.trainingHealth}"></label><label>每波数量<input id="bench-count" type="number" min="1" max="24" value="${w.trainingCount}"></label><label>设定波次<input id="bench-wave" type="number" min="1" max="100" value="${Math.max(1, w.wave)}"></label><label>指定掉落${select("bench-organ", { cycle: { name: `${organIds.length} 种轮换` }, ...organs }, w.trainingOrgan)}</label><label class="bench-check"><input id="bench-auto" type="checkbox" ${w.trainingAuto ? "checked" : ""}>持续增压刷怪</label>` : ""}</div>
+  <p class="slice-muted">${weapons[w.armory.primary].hint} · ${secondaries[w.armory.secondary].hint}<br>Z/X 在战斗中轮换主武器，1–9 保留原武器快捷键。当前层数会实际改变数值；非线性效果和触发阈值见每张卡片。训练的资源与构筑不写入探索档案。</p>
   <div class="slice-actions"><button class="slice-secondary" data-action="apply-bench">应用配置</button>${w.training ? '<button class="slice-secondary" data-action="spawn-bench">立即召唤所选怪物</button><button class="slice-secondary" data-action="next-wave">开始下一波</button><button class="slice-secondary" data-action="resupply">恢复生命 / 弹药储备</button><button class="slice-secondary" data-action="clear-enemies">清除当前敌人</button>' : ""}</div>
   ${
     w.training

@@ -1,3 +1,8 @@
+import { RuleAbilities } from "./abilities/RuleAbilities";
+import { RigBoss } from "./RigBoss";
+import { exoticWeapons } from "./abilities/Content";
+import { CharacterSkills } from "./CharacterSkills";
+import { freshMeta, parseMeta, benefits, neutralBenefits, type MetaProgress } from "./meta/MetaProgression";
 import { World } from "../engine/World";
 import { Enemy } from "../engine/Enemy";
 import { idleControls, type Controls } from "../engine/Player";
@@ -18,6 +23,9 @@ import { matchup, organArchetype, type Archetype } from "./expedition/Counters";
 const hex = (color: string) => parseInt(color.slice(1), 16);
 
 export class Carrier extends Enemy {
+  rigPart?: "core" | "anchor";
+  combatRole?: import("./expedition/EnemyRoster").CombatRole;
+  combatTier = 0;
   weapon: WeaponId;
   secondary: SecondaryId | null = null;
   aggro = 0;
@@ -89,6 +97,7 @@ export interface RunLog {
   detail: string;
 }
 export interface Save {
+  meta: MetaProgress;
   version: 1;
   bank: number;
   trips: number;
@@ -97,6 +106,7 @@ export interface Save {
   active: boolean;
 }
 export const freshSave = (): Save => ({
+  meta: freshMeta(),
   version: 1,
   bank: 0,
   trips: 0,
@@ -118,6 +128,7 @@ export function parseSave(raw: string | null): Save {
       return freshSave();
     return {
       version: 1,
+      meta: parseMeta(s.meta),
       bank: Math.max(0, s.bank),
       trips: Math.max(0, s.trips),
       shortcut: s.shortcut === true,
@@ -133,6 +144,41 @@ export function parseSave(raw: string | null): Save {
   }
 }
 export class SliceWorld extends World {
+  skills = new CharacterSkills(this);
+  rules = new RuleAbilities(this);
+  rigBoss = new RigBoss(this);
+  availableWeapons: string[] | null = null;
+  reinforcement: Record<string, number> = {};
+  permanent = neutralBenefits();
+  applyProgress(meta: MetaProgress) {
+    if (this.training) return;
+    this.permanent = benefits(meta);
+    this.skills.configure(meta.campaign);
+    // Experimental weapons are loaned for demo testing, without changing ownership.
+    this.availableWeapons = [...new Set([...meta.campaign.ownedWeapons, ...Object.keys(exoticWeapons)])];
+    this.reinforcement = { ...meta.campaign.reinforcement };
+    if (this.expedition) {
+      this.expedition.objectives.configure(meta.campaign);
+      if (meta.campaign.built.includes("maintenanceRoute")) {
+        this.expedition.open.add("sewer-valve");
+        for (const gate of this.expedition.geometry.gates)
+          if (gate.lock === "sewer-valve") this.platforms[gate.index].y = -1000;
+      }
+      if (meta.campaign.built.includes("freightPower")) {
+        this.expedition.power = true;
+        this.expedition.open.add("freight-power");
+      }
+    }
+    this.syncStats();
+    this.player.hp = this.player.maxHp;
+    this.medkits = 2 + this.permanent.medkits;
+    this.energy = this.permanent.energy;
+    if (this.expedition) this.expedition.cargo.capacity = this.permanent.capacity;
+    this.armory.switchPrimary(meta.primary);
+    this.armory.switchSecondary(meta.secondary);
+    this.record("departure", JSON.stringify({ ...this.permanent, modification: meta.installed }));
+  }
+
   declare enemies: Carrier[];
   ascent: Ascent | null = null;
   /** 0.10 run: map + ecology + loot. Replaces the ascent tower for expedition runs. */
@@ -270,6 +316,9 @@ export class SliceWorld extends World {
       e.boundsWidth = this.width;
       e.weapon = c.weapon;
       e.secondary = c.secondary;
+      e.combatRole = c.combatRole;
+      e.combatTier = c.combatTier ?? 0;
+      e.damageFactor = 1 + e.combatTier * 0.1;
       this.ecoIds.set(e, c.id);
       return e;
     });
@@ -325,14 +374,21 @@ export class SliceWorld extends World {
         (this.shield > 0 ? 0.5 * this.effectCount("shieldBurst") : 0) +
         (1 - this.player.hp / this.player.maxHp) * 0.8 * this.effectCount("rage") +
         (!this.player.grounded ? 0.3 * this.effectCount("airPower") : 0)) *
-      this.juice.power
+      this.juice.power *
+      this.skills.damage
     );
   }
   get vitalityLevel() {
     return Math.floor(this.collectedLayers / 6);
   }
   get naturalMaxHp() {
-    return 100 + 20 * this.vitalityLevel + 10 * this.count("leech") + 20 * this.count("vitality");
+    return (
+      100 +
+      this.permanent.health +
+      20 * this.vitalityLevel +
+      10 * this.count("leech") +
+      20 * this.count("vitality")
+    );
   }
   syncStats(growth = 0) {
     const oldMax = this.player.maxHp;
@@ -409,6 +465,7 @@ export class SliceWorld extends World {
     this.result = null;
     this.pendingDrop = null;
     this.enemies.length = 0;
+    this.rules = new RuleAbilities(this);
     this.projectiles = [];
     this.grenades = [];
     this.slamming = false;
@@ -527,17 +584,6 @@ export class SliceWorld extends World {
   expeditionNearby() {
     const ex = this.expedition!,
       p = this.player;
-    if (ex.search.pile)
-      return {
-        type: "search" as const,
-        label: `搜索中 ${Math.round(ex.search.progress * 100)}% · 松开 E 或受击会中断`,
-      };
-    const pile = ex.nearestPile(p.x, p.y);
-    if (pile)
-      return {
-        type: "search" as const,
-        label: `按住 E 搜索 ${pile.source} · 难度 ${pile.difficulty.toFixed(1)} · 有噪音`,
-      };
     const sc = ex.shortcutAt(p.x, p.y);
     if (sc && !ex.open.has(sc.id))
       return { type: "shortcut" as const, label: `E 打开 ${sc.name} · ${sc.note}` };
@@ -550,6 +596,19 @@ export class SliceWorld extends World {
         label: blocked ?? `按住 E 两秒 · 从${fx.name}撤离 · 货物价值 ${ex.cargo.value}`,
       };
     }
+    const objective = ex.objectives.prompt();
+    if (objective) return { type: "objective" as const, label: objective };
+    if (ex.search.pile)
+      return {
+        type: "search" as const,
+        label: `搜索中 ${Math.round(ex.search.progress * 100)}% · 松开 E 或受击会中断`,
+      };
+    const pile = ex.nearestPile(p.x, p.y);
+    if (pile)
+      return {
+        type: "search" as const,
+        label: `按住 E 搜索 ${pile.source} · 难度 ${pile.difficulty.toFixed(1)} · 有噪音`,
+      };
     const expDrop = this.drops
       .filter((d) => distance(d, p) < 88)
       .sort((a, b) => distance(a, p) - distance(b, p))[0];
@@ -558,7 +617,9 @@ export class SliceWorld extends World {
         type: "drop" as const,
         drop: expDrop,
         label: this.unlimited
-          ? `靠近自动接入「${organs[expDrop.organ].name}」`
+          ? this.expedition?.objectives.packing
+            ? `E 封装「${organs[expDrop.organ].name}」 · P 恢复吸收`
+            : `靠近自动接入「${organs[expDrop.organ].name}」 · P 切换封装`
           : `E 查看 / 接入「${organs[expDrop.organ].name}」`,
       };
     return null;
@@ -591,7 +652,17 @@ export class SliceWorld extends World {
     return null;
   }
   interact() {
+    if (this.result) return;
+    if (this.expedition?.interactionConsumed) return;
     const n = this.nearby();
+    if (n?.type === "objective" && this.expedition?.objectives.interact()) {
+      this.expedition.interactionConsumed = true;
+      return;
+    }
+    if (n?.type === "drop" && this.expedition?.objectives.packing && this.expedition.objectives.pack()) {
+      this.expedition.interactionConsumed = true;
+      return;
+    }
     if (!n || this.result) return;
     if (n.type === "site") {
       this.ascent?.use(n.site);
@@ -603,7 +674,10 @@ export class SliceWorld extends World {
     }
     if (n.type === "shortcut") {
       const name = this.expedition?.openShortcut(this.player.x, this.player.y);
-      if (name) this.say(`${name} 已打开 · 路线缩短`);
+      if (name) {
+        this.expedition!.interactionConsumed = true;
+        this.say(`${name} 已打开 · 松开 E 后再交互`);
+      }
       return;
     }
     if (n.type === "portal") this.travel(n.portal.to);
@@ -675,7 +749,7 @@ export class SliceWorld extends World {
     });
   }
   autoCollect() {
-    if (this.result || this.dead || this.pendingDrop) return;
+    if (this.result || this.dead || this.pendingDrop || this.expedition?.objectives.packing) return;
     for (const d of [...this.drops]) {
       if (
         !(this.unlimited || this.has(d.organ)) ||
@@ -729,12 +803,14 @@ export class SliceWorld extends World {
         this.say("完美格挡");
         return;
       }
-      amount *= 0.4;
+      amount *= 0.4 * (1 - 0.05 * (this.reinforcement.shield ?? 0));
     }
+    amount *= this.skills.protection;
     amount /= 1 + 0.12 * this.count("armor");
     if (this.shield > 0) {
       const absorbed = Math.min(this.shield, amount);
       this.shield -= absorbed;
+      if (this.shield === 0 && absorbed > 0) this.rules.emit("ShieldBreak", { amount: absorbed });
       amount -= absorbed;
       if (amount <= 0) {
         this.player.invulnerable = 0.15;
@@ -744,6 +820,8 @@ export class SliceWorld extends World {
     const before = this.player.hp;
     super.hurtPlayer(amount, fromX);
     if (before !== this.player.hp) {
+      if (this.skills.moon) this.skills.moon.lost += Math.max(0, before - this.player.hp);
+      this.player.vx *= this.skills.protection;
       if (this.projectileHit) this.player.invulnerable = Math.min(this.player.invulnerable, 0.25);
       this.juice.hurt();
       this.juice.beat("hurt", this.player.x, this.player.y);
@@ -759,6 +837,8 @@ export class SliceWorld extends World {
     }
   }
   push(e: Carrier, impulse: number) {
+    if (e.rigPart) return;
+    impulse = this.rules.emit("Push", { target: e, amount: impulse }).amount;
     e.impulseX = clamp(
       e.impulseX +
         (impulse * (1 + 0.65 * this.count("knock")) * (e.stun > 0 ? 1 + this.count("stunKnock") : 1)) /
@@ -770,6 +850,7 @@ export class SliceWorld extends World {
   }
   hit(e: Carrier, amount: number, direct = false, impulse = 0, heavy = false) {
     if (e.dead) return;
+    if (heavy) this.rules.emit("HeavyHit", { target: e, amount, tags: new Set(["Heavy"]) });
     this.ascent?.awakened.add(e.id);
     e.aggro = 5;
     amount = this.hostile.defend(e, amount);
@@ -781,6 +862,14 @@ export class SliceWorld extends World {
     const marked = e.mark > 0;
     if (direct) amount *= this.power() * this.juice.executeScale(e.hp, e.maxHp);
     if (e.vulnerable > 0) amount *= 1 + e.vulnerability;
+    if (direct)
+      amount = this.rules.emit("BeforeDamage", {
+        target: e,
+        amount,
+        heavy,
+        tags: new Set(heavy ? ["Heavy"] : []),
+      }).amount;
+    amount = this.rigBoss.scaleDamage(e, amount);
     const actual = Math.min(e.hp, amount);
     this.metrics.dealt += actual;
     this.recentDamage.push({ time: this.time, amount: actual });
@@ -824,6 +913,7 @@ export class SliceWorld extends World {
       }
     }
     this.push(e, impulse);
+    if (this.rigBoss.breakAnchor(e, amount)) return;
     super.damageEnemy(e, amount, 0, direct ? "hit" : "combo");
     const color = hex(organs[e.organ].color),
       angle = Math.atan2(e.y - this.player.y, e.x - this.player.x);
@@ -834,6 +924,7 @@ export class SliceWorld extends World {
       const ecoId = this.ecoIds.get(e);
       const salvage = this.expedition ? this.expedition.salvage(e, ecoId) : e.organs.entries();
       if (ecoId !== undefined && this.expedition) this.expedition.onEnemyKilled(e, ecoId);
+      this.rules.emit("Kill", { target: e, x: e.x, y: e.y });
       const elite = e.kind === "elite";
       this.juice.kill(elite);
       this.juice.beat(elite ? "eliteKill" : "kill", e.x, e.y, color, angle);
@@ -955,6 +1046,7 @@ export class SliceWorld extends World {
     this.record("grenade", this.zoneId);
   }
   blast(x: number, y: number, damage: number, radius: number, push: number, except?: Carrier) {
+    if (this.rules.explosion(x, y, damage, radius, push, except)) return;
     this.emit("detach", x, y, 0xedb76c);
     this.juice.beat("blast", x, y, 0xedb76c);
     this.areaFlashes.push({ x, y, radius: Math.min(1800, radius), life: 0.32 });
@@ -970,6 +1062,7 @@ export class SliceWorld extends World {
     for (const e of targets) this.hit(e, damage * multi, false, Math.sign(e.x - x || 1) * push);
   }
   updateEnemy(e: Carrier, dt: number) {
+    if (e.rigPart) return;
     if (e.dead || (this.ascent && !this.ascent.beforeEnemy(e))) return;
     if (e.spawnGrace > 0) {
       e.spawnGrace -= dt;
@@ -1124,6 +1217,8 @@ export class SliceWorld extends World {
   override updateProjectiles(dt: number) {
     for (const b of this.projectiles) {
       if (b.dead) continue;
+      this.rules.beforeProjectile(b, dt);
+      if (b.dead) continue;
       const dx = b.vx * dt,
         dy = b.vy * dt;
       let first = 2;
@@ -1161,6 +1256,7 @@ export class SliceWorld extends World {
             Math.sign(b.vx) * (data?.heavy ? 150 : 24),
             data?.heavy ?? false,
           );
+          this.rules.contact(b, e);
           data?.hits.add(e.id);
           if (data?.powered || (!data && this.shotHeavy.has(b))) {
             this.metrics.chargedHits++;
@@ -1212,7 +1308,16 @@ export class SliceWorld extends World {
       b.x += dx * Math.min(1, first);
       b.y += dy * Math.min(1, first);
       if (first <= 1) b.dead = true;
+      if (first <= 1 && first === wallT && b.team === "player") this.rules.contact(b);
       b.life -= dt;
+      const outside = b.x < 0 || b.x > this.width || b.y < -60 || b.y > this.height + 20;
+      if (b.life <= 0 || outside) {
+        this.rules.expire(b);
+        if (outside && this.rules.shots.get(b)?.returning && !b.dead && b.life > 0) {
+          b.x = clamp(b.x, 1, this.width - 1);
+          b.y = clamp(b.y, -59, this.height + 19);
+        }
+      }
     }
     this.projectiles = this.projectiles
       .filter(
@@ -1228,7 +1333,10 @@ export class SliceWorld extends World {
     this.time += dt;
     this.messageTime -= dt;
     this.juice.update(dt);
-    this.player.moveScale = this.juice.move;
+    this.skills.update(dt);
+    this.rules.update(dt);
+    this.rigBoss.update(dt);
+    this.player.moveScale = this.juice.move * this.skills.move;
     this.grenadeCooldown = Math.max(0, this.grenadeCooldown - dt);
     for (const n of this.damageNumbers) {
       n.life -= dt;
@@ -1242,10 +1350,10 @@ export class SliceWorld extends World {
     for (const a of this.areaFlashes) a.life -= dt;
     this.areaFlashes = this.areaFlashes.filter((a) => a.life > 0);
     this.recentDamage = this.recentDamage.filter((d) => this.time - d.time < 5).slice(-12000);
-    if (!(this.armory.secondary === "shield" && c.phase))
-      this.stamina = Math.min(100, this.stamina + 24 * dt);
+    if (!(this.armory.secondary === "shield" && c.phase) && !(this.armory.primary === "gravity" && c.fire))
+      this.stamina = Math.min(100, this.stamina + 24 * this.permanent.recovery * dt);
     if (this.heat >= 60) this.hotCycle = true;
-    this.heat = Math.max(0, this.heat - (!c.fire || this.overheated ? 28 : 3) * dt);
+    this.heat = Math.max(0, this.heat - (!c.fire || this.overheated ? 28 : 3) * this.permanent.cooling * dt);
     if (this.heat <= 35) {
       if (this.hotCycle) this.gainShield(25 * this.count("coolShield"));
       this.hotCycle = false;
@@ -1307,6 +1415,7 @@ export class SliceWorld extends World {
     }
     if (dash) {
       this.dashSerial++;
+      this.rules.emit("Dash", { x: p.x, y: p.y });
       this.emit("dash", p.x, p.y);
     }
     this.armory.update(dt, controls);
@@ -1319,7 +1428,7 @@ export class SliceWorld extends World {
       g.x += g.vx * dt;
       g.y += g.vy * dt;
       if (g.life <= 0 || this.platforms.some((r) => overlaps({ x: g.x, y: g.y, w: 8, h: 8 }, r))) {
-        this.blast(g.x, g.y - 10, 12, 160, 650);
+        this.blast(g.x, g.y - 10, 12 * (1 + 0.05 * (this.reinforcement.grenade ?? 0)), 160, 650);
         g.life = -1;
       }
     }
@@ -1338,6 +1447,7 @@ export class SliceWorld extends World {
     if (p.y > this.height + 40) this.hurtPlayer(100, p.x);
     this.extracting =
       interactHeld &&
+      !this.expedition?.interactionConsumed &&
       this.nearby()?.type === "exit" &&
       (!this.expedition || !this.expedition.extractBlocked(this.expedition.extractorAt(p.x, p.y)!)) &&
       this.time - this.hurtAt > 1 &&

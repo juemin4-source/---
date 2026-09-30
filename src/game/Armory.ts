@@ -43,6 +43,10 @@ export class Armory {
   constructor(public w: SliceWorld) {}
   switchPrimary(id: WeaponId) {
     if (!weapons[id]) return;
+    if (this.w.availableWeapons && !this.w.availableWeapons.includes(id)) {
+      this.w.say(`${weapons[id].name}尚未制造 · 前往据点工坊解锁`);
+      return;
+    }
     this.primary = id;
     this.charge = 0;
     this.previousFire = false;
@@ -50,7 +54,7 @@ export class Armory {
     this.w.record("weapon", id);
   }
   switchSecondary(id: SecondaryId) {
-    if (!secondaries[id]) return;
+    if (!secondaries[id] || (this.w.availableWeapons && !this.w.availableWeapons.includes(id))) return;
     this.secondary = id;
     this.grenadeCharge = 0;
     this.previousQ = false;
@@ -64,11 +68,17 @@ export class Armory {
     x = this.w.player.x,
     y = this.w.player.y,
     angle = this.w.player.aim,
+    companion = false,
+    kind = "normal",
   ) {
     const w = this.w,
-      powered = heavy && w.effectCount("discharge") > 0 && w.energy > 0;
+      powered = !w.skills.replaying && heavy && w.effectCount("discharge") > 0 && w.energy > 0;
     // Committing to an attack cancels an in-progress search, so you cannot search and fight at once.
     w.noteAttack();
+    if (!companion) {
+      w.skills.capture({ kind: "shot", damage, heavy, range: 0, angle, piercing });
+      damage *= w.permanent.weaponDamage * (1 + 0.05 * (w.reinforcement[this.primary] ?? 0));
+    }
     if (powered) {
       w.energy--;
       damage += 32 * w.effectCount("discharge");
@@ -84,18 +94,31 @@ export class Armory {
     this.shots.set(b, { heavy, powered, piercing, hits: new Set() });
     if (powered) w.shotHeavy.add(b);
     w.projectiles.push(b);
+    w.rules.register(b, companion ? "companion" : kind);
     w.metrics.shots++;
     w.emit("shot", b.x, b.y, heavy ? 0xffc87e : 0xe7edbd, angle);
     w.juice.beat("shot", b.x, b.y, heavy ? 0xffc87e : 0xe7edbd, angle);
     if (powered) w.juice.beat("heavy", b.x, b.y, 0xa6d2ec, angle);
+    return b;
   }
-  melee(damage: number, heavy: boolean, radius: number) {
+  melee(damage: number, heavy: boolean, radius: number, origin?: { x: number; y: number }, copy = false) {
     const w = this.w,
-      p = w.player;
+      p = origin ? { ...w.player, ...origin } : w.player;
+    w.rules.emit("AttackCreated", {
+      x: p.x,
+      y: p.y,
+      amount: damage,
+      heavy,
+      radius,
+      tags: new Set(copy ? ["Melee", "Copy"] : ["Melee"]),
+    });
     w.noteAttack();
     this.swing = { radius: w.attackRange(radius), life: 0.2, angle: p.aim, heavy };
+    if (!copy)
+      w.skills.capture({ kind: "melee", damage, heavy, range: radius, angle: p.aim, piercing: false });
+    damage *= w.permanent.weaponDamage * (1 + 0.05 * (w.reinforcement[this.primary] ?? 0));
     let powered = false;
-    if (heavy && w.effectCount("discharge") && w.energy > 0) {
+    if (!w.skills.replaying && heavy && w.effectCount("discharge") && w.energy > 0) {
       w.energy--;
       powered = true;
       damage += 32 * w.effectCount("discharge");
@@ -146,6 +169,16 @@ export class Armory {
       });
       w.grenadeCooldown = 0.65;
     } else if (this.secondary === "turret") {
+      const old = this.units.find((u) => u.type === "turret" && u.hp > 0);
+      if (old && w.count("relocate")) {
+        old.x = w.player.x;
+        old.y = w.player.y + 7;
+        old.cooldown = 0;
+        w.rules.deploy(old);
+        w.blast(old.x, old.y, 15 * w.count("relocate"), 120, 180);
+        w.grenadeCooldown = 2;
+        return;
+      }
       this.units = this.units.filter((u) => u.type !== "turret");
       this.units.push({
         id: this.nextUnit++,
@@ -158,11 +191,13 @@ export class Armory {
       });
       w.grenadeCooldown = 2;
     }
+    const deployed = this.units.at(-1);
+    if (deployed) w.rules.deploy(deployed);
   }
   update(dt: number, c: Controls) {
     const w = this.w,
       p = w.player,
-      speed = w.speedFactor(),
+      speed = w.speedFactor() * w.permanent.attackSpeed * w.skills.speed,
       pressed = c.fire && !this.previousFire;
     this.swing.life = Math.max(0, this.swing.life - dt);
     const blocking = this.secondary === "shield" && c.phase && w.stamina > 0;
@@ -177,13 +212,15 @@ export class Armory {
       p.vx *= 0.35;
       w.stamina -= 15;
     }
-    if (this.primary === "sniper") {
+    if (w.rules.weapon(dt, c, speed)) {
+      // Mechanism weapons share the same attack and projectile hooks.
+    } else if (this.primary === "sniper") {
       if (c.fire) this.charge = Math.min(1.3, this.charge + dt);
       if (!c.fire && this.previousFire && p.fireCooldown <= 0) {
         const heavy = this.charge >= 0.25;
         this.shoot(heavy ? 35 + (85 * this.charge) / 1.3 : 22, heavy, heavy);
         p.fireCooldown = 0.38 / speed;
-        w.heat = Math.min(100, w.heat + (heavy ? 25 : 6));
+        w.skills.addHeat(heavy ? 25 : 6);
         this.charge = 0;
       }
     } else if (this.primary === "dagger") {
@@ -202,7 +239,7 @@ export class Armory {
         this.melee(21 * (1 + this.rhythmStacks * 0.2), false, 83);
         w.stamina -= 4;
         p.fireCooldown = 0.12 / speed;
-        w.heat = Math.min(100, w.heat + 3);
+        w.skills.addHeat(3);
       }
     } else if (c.fire && p.fireCooldown <= 0 && !blocking) {
       if (this.primary === "hammer") {
@@ -214,14 +251,14 @@ export class Armory {
           this.melee(heavy ? 68 : 32, heavy, heavy ? 155 : 107);
           w.stamina -= 10;
           p.fireCooldown = (heavy ? 0.64 : 0.42) / speed;
-          w.heat = Math.min(100, w.heat + 6);
+          w.skills.addHeat(6);
         }
       } else if (this.primary === "rifle") {
-        if (!w.overheated) {
+        if (!w.overheated || w.skills.burning) {
           this.shoot(w.heat >= 60 ? 18 : 11, w.heat >= 60);
-          w.heat = Math.min(100, w.heat + 10);
+          w.skills.addHeat(10);
           p.fireCooldown = 0.105 / speed;
-          if (w.heat >= 100) {
+          if (w.heat >= 100 && !w.skills.burning) {
             w.overheated = true;
             w.say("步枪过热 · 停火散热至 35 以下");
           }
@@ -230,7 +267,7 @@ export class Armory {
         w.ammo = (w.ammo + 1) % 5;
         this.shoot(w.ammo === 0 ? 28 : 14, w.ammo === 0);
         p.fireCooldown = 0.235 / speed;
-        w.heat = Math.min(100, w.heat + 4);
+        w.skills.addHeat(4);
       }
     }
     if (this.secondary === "grenade") {
@@ -246,7 +283,7 @@ export class Armory {
       if (u.hp <= 0) continue;
       u.cooldown -= dt;
       u.invulnerable = Math.max(0, u.invulnerable - dt);
-      if (u.type === "drone") {
+      if (u.type === "drone" && !w.rules.attached(u)) {
         u.x += (p.x + Math.cos(w.time * 1.8 + i * 2) * 80 - u.x) * Math.min(1, dt * 5);
         u.y += (p.y - 85 + Math.sin(w.time * 2 + i) * 18 - u.y) * Math.min(1, dt * 5);
       }
@@ -255,14 +292,15 @@ export class Armory {
         .sort((a, b) => distance(a, u) - distance(b, u))[0];
       if (target && u.cooldown <= 0) {
         this.shoot(
-          u.type === "turret" ? 20 : 12,
+          (u.type === "turret" ? 20 : 12) * (1 + 0.05 * (w.reinforcement[u.type] ?? 0)),
           false,
           false,
           u.x,
           u.y,
           Math.atan2(target.y - u.y, target.x - u.x),
+          true,
         );
-        u.cooldown = (u.type === "turret" ? 0.26 : 0.45) / speed;
+        u.cooldown = (u.type === "turret" ? 0.26 : 0.45) / w.speedFactor();
       }
     }
     this.units = this.units.filter((u) => u.hp > 0);
@@ -270,7 +308,9 @@ export class Armory {
   get rhythmRemaining() {
     return Math.max(
       0,
-      rhythm[this.rhythmIndex] / Math.min(2, this.w.speedFactor()) - (this.w.time - this.lastBeat),
+      rhythm[this.rhythmIndex] /
+        Math.min(2, this.w.speedFactor() * this.w.permanent.attackSpeed * this.w.skills.speed) -
+        (this.w.time - this.lastBeat),
     );
   }
 }

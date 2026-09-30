@@ -1,4 +1,5 @@
 import { residentGroups } from "./ExpeditionResidents";
+import { equipReinforcement } from "./EnemyRoster";
 import { SeededRandom } from "./SeededRandom";
 import { canHunt, matchup, roleAdvantage, roleCounteredBy } from "./Counters";
 import { OrganLoadout } from "../OrganLoadout";
@@ -172,6 +173,7 @@ export class Ecology {
     c.name = `${c.kind}-${String(c.id).padStart(2, "0")}`;
     c.organs.add(this.rng.pick(def.organPool), 1);
     if (stage !== "juvenile") c.organs.add(this.rng.pick(def.organPool), 1);
+    equipReinforcement(c);
     c.anchorX = c.x;
     this.creatures.push(c);
     this.nextCreature++;
@@ -220,6 +222,7 @@ export class Ecology {
     // Juveniles are weak but never empty-handed: one organ from the nest's pool.
     c.organs.add(this.rng.pick(def.organPool), 1);
     if (stage !== "juvenile") c.organs.add(this.rng.pick(def.organPool), 1);
+    equipReinforcement(c);
     c.anchorX = c.x;
     this.creatures.push(c);
     this.nextCreature++;
@@ -240,7 +243,7 @@ export class Ecology {
     c.maxHp = Math.max(
       10,
       Math.round(
-        (BASE_HP[c.kind] * STAGE_HP[c.stage] * (1 + 0.04 * layers) +
+        (BASE_HP[c.kind] * (1 + 0.22 * (c.combatTier ?? 0)) * STAGE_HP[c.stage] * (1 + 0.04 * layers) +
           20 * c.organs.count("vitality") +
           10 * c.organs.count("leech")) *
           0.7 ** c.organs.count("glass"),

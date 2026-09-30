@@ -1,3 +1,4 @@
+import { people } from "../meta/CampaignContent";
 import type { Expedition } from "./Expedition";
 import { extractors, extractorPos, shortcutDefs } from "./ExpeditionContent";
 import { districts, links } from "./ExpeditionMap";
@@ -75,6 +76,13 @@ export function expeditionMapHTML(
       }" stroke-width="10"/>`;
     })
     .join("");
+  const rescueMarks = ex.objectives.rescue
+    .filter((r) => r.hp > 0 && known.has(people[r.id].district))
+    .map(
+      (r) =>
+        `<path d="M${r.x} ${r.y - 45}l24 45l-24 45l-24 -45z" fill="${r.following ? "#b9e8b1" : "#b7c4e5"}"/><text x="${r.x + 30}" y="${r.y}" fill="#d3dce6" font-size="40">${people[r.id].name}</text>`,
+    )
+    .join("");
   const stats = ex.eco.districtStats();
   const rows = districts
     .filter((d) => known.has(d.id))
@@ -85,10 +93,10 @@ export function expeditionMapHTML(
     .join("");
   return `<div class="slice-eyebrow">活生态地图 · 已知区域 · 当前暂停</div><h1>${ex.district} 区 · 威胁 ${ex.eco.threatLabel()}</h1>
   <div class="ascent-map-layout"><svg class="ascent-map" viewBox="0 0 ${width} ${height}" role="img" aria-label="活生态搜打撤地图：九个区域、两条撤离路线与生态分布">
-    ${districtRects}${linkPaths}${nests}${pileMarks}${shortcutMarks}${extractMarks}
+    ${districtRects}<rect x="820" y="1090" width="1020" height="520" fill="#24332e" stroke="#739489" stroke-width="5"/><text x="900" y="1220" fill="#cfe8d8" font-size="58">档案库 / 封存书库</text><path d="M930 2190 L930 1550 L1850 1700 L2070 1800" fill="none" stroke="#6d9483" stroke-width="12"/>${linkPaths}${nests}${pileMarks}${shortcutMarks}${extractMarks}${rescueMarks}
     <circle cx="${playerX}" cy="${playerY}" r="40" fill="#fff1cc" stroke="#111" stroke-width="12"/>
   </svg><div>
-    <p>白点：你的位置<br>圆点：未搜完的搜索点（越大越难，越红越危险）<br>方框：撤离点（灰＝不可用）<br>横线：可打开的捷径<br>圆环：巢穴（越大越活跃）</p>
+    <p>白点：你的位置<br>菱形：已知地区幸存者（绿＝跟随中）<br>圆点：未搜完的搜索点（越大越难，越红越危险）<br>方框：撤离点（灰＝不可用）<br>横线：可打开的捷径<br>圆环：巢穴（越大越活跃）</p>
     <p><b>两条回程</b><br>安全气闸：永远可用，但带不走重型货物。<br>货运撤离站：要先恢复供电，是唯一能吊走重型货物的出口。</p>
     <p><b>负重</b> ${ex.cargo.value} 价值 · ${ex.cargo.weight} 重量 · ${ex.cargo.size}/${ex.cargo.capacity} 格${
       ex.heavy ? `<br><span class="warn">携带重型货物：移动变慢，且过不去窄道</span>` : ""

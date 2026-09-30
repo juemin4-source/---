@@ -19,6 +19,8 @@ export type Intent =
 export type NestState = "dormant" | "active" | "swollen" | "collapsed";
 
 export interface EcoCreature {
+  combatRole?: import("./EnemyRoster").CombatRole;
+  combatTier?: number;
   id: number;
   name: string;
   role: Role;

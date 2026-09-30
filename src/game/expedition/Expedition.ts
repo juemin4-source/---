@@ -1,3 +1,5 @@
+import { ExpeditionObjectives } from "./ExpeditionObjectives";
+import { lootDefs } from "./LootSystem";
 import { distance, rayRect, type Rect } from "../../engine/PhysicsHelpers";
 import type { Controls } from "../../engine/Player";
 import type { Renderer } from "../../engine/Renderer";
@@ -65,11 +67,14 @@ export interface ExtractRequest {
  * Everything time-based in a run lives here, so SliceWorld stays combat orchestration.
  */
 export class Expedition {
+  objectives: ExpeditionObjectives;
   geometry: Geometry;
   eco: Ecology;
   cargo: CargoState = freshCargo(6);
   piles: LootPile[];
   search: SearchState = freshSearch();
+  /** Instant actions own E until released; holding cannot spill into a second action. */
+  interactionConsumed = false;
   open = new Set<string>();
   power = false;
   district: DistrictId = "airlock";
@@ -120,13 +125,30 @@ export class Expedition {
     public seed = 1,
     private makeEnemy: (c: EcoCreature, district: DistrictId) => Carrier,
   ) {
+    this.objectives = new ExpeditionObjectives(w);
     this.rng = new SeededRandom(seed);
     this.geometry = buildGeometry();
     w.width = this.geometry.size.width;
     w.height = this.geometry.size.height;
     w.platforms = this.geometry.platforms.map((p) => ({ ...p }));
     w.enemies = [];
-    w.drops = [];
+    // Authored experimental salvage, separate from creature ecology and ordinary loot.
+    w.drops = (
+      [
+        [1090, 1586, "returnMembrane"],
+        [1240, 1586, "mirrorEye"],
+        [1650, 1586, "split"],
+        [2260, 2254, "stitch"],
+        [2760, 2254, "polarity"],
+        [3000, 2254, "debt"],
+        [3500, 1632, "vacuum"],
+        [4540, 1656, "corpse"],
+        [5100, 1656, "parasite"],
+        [4050, 1136, "refract"],
+        [6100, 1370, "shell"],
+        [6510, 1370, "relocate"],
+      ] as [number, number, OrganId][]
+    ).map(([x, y, organ]) => ({ id: nextUid(), x, y, organ, stacks: 1 }));
     w.player.x = this.geometry.start.x;
     w.player.y = this.geometry.start.y;
     w.player.boundsWidth = w.width;
@@ -135,6 +157,26 @@ export class Expedition {
     this.lastY = w.player.y;
     this.eco = new Ecology(seed);
     this.piles = buildLootPiles((c) => this.rng.chance(c));
+    const extra: [number, number, DistrictId, string, string[]][] = [
+      [1070, 1586, "cargo", "资料架", ["maintenanceBook", "pythonBook"]],
+      [1530, 1308, "cargo", "封存书库", ["fusionBook", "medicalBook", "trainingTicket"]],
+      [1450, 1586, "cargo", "档案财物", ["batteryCell", "trainingTicket"]],
+      [900, 2176, "cargo", "备用电池柜", ["batteryCell", "batteryCell"]],
+      [5100, 1656, "cool", "应急医疗柜", ["medicalBook", "trainingTicket"]],
+      [4160, 1136, "deep", "聚变燃料柜", ["fuelCell", "fuelCell"]],
+      [6400, 1370, "spine", "工业机床", ["machineTool"]],
+    ];
+    for (const [x, y, district, source, ids] of extra)
+      this.piles.push({
+        uid: nextUid(),
+        x,
+        y,
+        district,
+        source,
+        taken: false,
+        difficulty: 2.8,
+        items: ids.map((id) => ({ uid: nextUid(), def: lootDefs[id], source, district })),
+      });
     w.say("九号泵站 · 向右穿过维修工区 · 空格跳跃 / 二段跳 · 器官靠近自动接入");
   }
 
@@ -243,6 +285,7 @@ export class Expedition {
 
   // ── per-frame ───────────────────────────────────────────────────────────────
   update(dt: number, c: Controls, interactHeld: boolean, damaged: boolean, attacked: boolean) {
+    if (!interactHeld) this.interactionConsumed = false;
     this.time += dt;
     const p = this.w.player;
     p.traversalBlocked = this.heavy;
@@ -300,7 +343,7 @@ export class Expedition {
       this.search,
       dt,
       {
-        holding: interactHeld,
+        holding: interactHeld && !this.interactionConsumed && this.w.expeditionNearby()?.type === "search",
         canSearch: p.grounded && p.dashTime <= 0 && !c.dash && !c.jump && !this.w.result,
         playerX: p.x,
         playerY: p.y,
@@ -336,6 +379,7 @@ export class Expedition {
     }
     // Organ ban: refuse one organ for the rest of the run (auto-equip only).
     this.syncEcology(dt);
+    this.objectives.update(dt);
   }
   private lastBlocked: number | null = null;
 
@@ -563,6 +607,7 @@ export class Expedition {
     };
   }
   render(art: Renderer) {
+    this.objectives.render(art);
     const g = art.g;
     for (const l of this.geometry.ladders) {
       if (l.lock && !this.open.has(l.lock)) continue;
