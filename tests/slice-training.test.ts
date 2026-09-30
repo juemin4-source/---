@@ -12,9 +12,9 @@ const target = (w: SliceWorld, x = 300) => {
 };
 const fire = () => ({ ...idleControls(), fire: true, mx: 500, my: 580 });
 describe("0.6 无尽训练 / 叠层与九武器", () => {
-  it("30 种可接入，每组叠层改变数值，第七种替换时保留整组层数", () => {
-    expect(organIds).toHaveLength(30);
-    expect(Object.keys(weapons)).toHaveLength(5);
+  it("42 种可接入，每组叠层改变数值，第七种替换时保留整组层数", () => {
+    expect(organIds).toHaveLength(42);
+    expect(Object.keys(weapons)).toHaveLength(11);
     expect(Object.keys(secondaries)).toHaveLength(4);
     for (const id of organIds) {
       const w = new SliceWorld();
