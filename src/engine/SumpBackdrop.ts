@@ -4,10 +4,27 @@ import type { World } from "./World";
 /** Background-only scenery. All walkable edges still come from World.platforms. */
 export class SumpBackdrop {
   private image?: Phaser.GameObjects.Image;
+  private pump?: Phaser.GameObjects.Image;
   private foreground: Phaser.GameObjects.Graphics;
   private source?: HTMLImageElement;
   private disposed = false;
   constructor(private scene: Phaser.Scene) {
+    const pumpKey = "pump-hall-painted-v2";
+    const pumpReady = () => {
+      if (!this.disposed)
+        this.pump = scene.add.image(0, 0, pumpKey).setOrigin(0).setDepth(-2.9).setVisible(false);
+    };
+    if (scene.textures.exists(pumpKey)) pumpReady();
+    else {
+      const source = new Image();
+      source.onload = () => {
+        if (!this.disposed) {
+          scene.textures.addImage(pumpKey, source);
+          pumpReady();
+        }
+      };
+      source.src = new URL("../assets/pump-hall-painted-v2.png", import.meta.url).href;
+    }
     this.foreground = scene.add.graphics().setDepth(4);
     const key = "sump-depth-v1";
     const ready = () => {
@@ -44,6 +61,7 @@ export class SumpBackdrop {
     // on the expedition map where those coordinates mean nothing.
     const tower = w.width === 3000 && w.height === 3300;
     this.image?.setVisible(active);
+    this.pump?.setVisible(active);
     this.foreground.clear();
     if (!active) return false;
     // Overscan is larger than the maximum parallax travel: no tiling or exposed edges.
@@ -55,6 +73,17 @@ export class SumpBackdrop {
       .setTint(0xa4b2c4);
     g.fillStyle(0x101a29, 0.22);
     g.fillRect(sx, sy, viewW, viewH);
+
+    if (this.pump) {
+      const blend = tower
+        ? 0
+        : Math.max(0, Math.min(1, (w.player.x - 3150) / 500, (5400 - w.player.x) / 500));
+      const pumpScale = Math.max((viewW + 320) / this.pump.width, (viewH + 190) / this.pump.height);
+      this.pump
+        .setScale(pumpScale)
+        .setPosition(sx - 80 - (sx - 3150) * 0.08, sy - 60)
+        .setAlpha(blend);
+    }
 
     // Near service piers: larger, darker and differently spaced from the distant architecture.
     for (const x of tower ? [620, 1415, 1660, 2445] : []) {

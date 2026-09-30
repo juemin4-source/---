@@ -78,7 +78,7 @@ export class Renderer {
     }
     // Human engineering and divine radial machines use different visual grammars.
     for (const e of w.enemies)
-      if (!e.dead) {
+      if (!e.dead && !("rigPart" in e && e.rigPart)) {
         const radius = e.w / 2,
           color =
             e.tier >= 0

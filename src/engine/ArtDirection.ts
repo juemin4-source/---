@@ -1,6 +1,9 @@
+import { drawWeapon } from "./WeaponArt";
 import Phaser from "phaser";
+import { PaintedAssets } from "./PaintedAssets";
 import { facilityPlatform, facilityFixture, facilityAirlock } from "./FacilityArt";
 import { SumpBackdrop } from "./SumpBackdrop";
+import { PumpRoomArt } from "./PumpRoomArt";
 import { HERO_ART_POSES, HERO_ART_SCALE, heroHandOffset } from "./HeroArtSpec";
 import type { World } from "./World";
 import type { Enemy } from "./Enemy";
@@ -9,7 +12,26 @@ import "../styles/art-sample.css";
 
 /** Presentation only. No collision, AI, input or combat state is changed here. */
 export class ArtDirection {
+  private painted: PaintedAssets;
+  private refuge?: Phaser.GameObjects.Image;
+  private refugeLoading = false;
+  campBackdrop() {
+    const key = "refuge-painted-v1";
+    if (!this.refuge && this.scene.textures.exists(key))
+      this.refuge = this.scene.add.image(0, 12, key).setOrigin(0).setDisplaySize(3240, 840).setDepth(-1);
+    if (!this.refuge && !this.refugeLoading) {
+      this.refugeLoading = true;
+      const image = new Image();
+      image.onload = () => {
+        if (!this.disposed) this.scene.textures.addImage(key, image);
+      };
+      image.src = new URL("../assets/refuge-painted-v1.png", import.meta.url).href;
+    }
+    this.refuge?.setVisible(true);
+    return !!this.refuge;
+  }
   private sump: SumpBackdrop;
+  private pumpRoom: PumpRoomArt;
   private hero?: Phaser.GameObjects.Image;
   private ghosts: Phaser.GameObjects.Image[] = [];
   private weapon: Phaser.GameObjects.Graphics;
@@ -22,7 +44,9 @@ export class ArtDirection {
     return !!this.hero;
   }
   constructor(private scene: Phaser.Scene) {
+    this.painted = new PaintedAssets(scene);
     this.sump = new SumpBackdrop(scene);
+    this.pumpRoom = new PumpRoomArt(scene);
     this.weapon = scene.add.graphics().setDepth(2);
     const setup = () => {
       if (this.disposed) return;
@@ -53,6 +77,9 @@ export class ArtDirection {
   }
 
   background(g: Phaser.GameObjects.Graphics, w: World) {
+    this.pumpRoom.draw(w);
+    this.refuge?.setVisible(false);
+    this.painted.begin(new Set(w.enemies.filter((e) => !e.dead).map((e) => e.id)));
     if (this.sump.draw(g, w)) return;
     const cam = this.scene.cameras.main,
       sx = cam.scrollX,
@@ -165,6 +192,7 @@ export class ArtDirection {
   }
 
   enemy(g: Phaser.GameObjects.Graphics, e: Enemy, time: number, playerX: number) {
+    if (this.painted.enemy(e, time, playerX)) return;
     const r = e.w / 2,
       active = e.windup > 0,
       flash = e.flash > 0;
@@ -312,22 +340,8 @@ export class ArtDirection {
     const primary = extra.armory?.primary ?? "handgun";
     g.lineStyle(4, 0xeee1df);
     g.lineBetween(10, 3, 14, 0);
-    g.fillStyle(0x171a24);
-    g.fillRoundedRect(10, -5, primary === "sniper" ? 35 : primary === "rifle" ? 28 : 20, 9, 2);
-    g.fillStyle(0x808899);
-    g.fillRect(12, -5, primary === "sniper" ? 30 : 17, 2);
-    g.fillStyle(0x9d3c56);
-    g.fillRect(15, -2, 7, 3);
-    if (primary === "dagger") {
-      g.fillStyle(0xd1d9e6);
-      g.fillTriangle(13, -3, 39, -1, 17, 4);
-    }
-    if (primary === "hammer") {
-      g.fillStyle(0x919baa);
-      g.fillRoundedRect(26, -12, 14, 24, 2);
-      g.fillStyle(0xc54d72);
-      g.fillRect(28, -10, 3, 20);
-    }
+    if (!this.painted.weapon(primary, p.x + hand.x, p.y + p.h / 2 + hand.y, p.aim))
+      drawWeapon(g, primary, w.time, p.fireCooldown > 0);
     g.restore();
     return true;
   }

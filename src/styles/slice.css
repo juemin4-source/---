@@ -940,3 +940,141 @@
     font-size: 9px;
   }
 }
+.meta-heading,
+.meta-stats,
+.meta-tabs,
+.meta-options,
+.meta-footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+}
+.meta-heading {
+  justify-content: space-between;
+}
+.meta-heading b {
+  color: #e9c786;
+  font-size: 21px;
+}
+.meta-tabs {
+  border-bottom: 1px solid #64778055;
+  padding-bottom: 12px;
+}
+.meta-tabs .slice-secondary,
+.meta-options .slice-secondary {
+  width: auto;
+  margin: 0;
+}
+.meta-tabs .selected {
+  border-color: #e9c786;
+  color: #ffe6b2;
+  background: #b6924922;
+}
+.meta-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 14px;
+}
+.meta-card {
+  background: #1d2b30;
+  border: 1px solid #61727c55;
+  border-radius: 8px;
+  padding: 18px;
+}
+.meta-card h3 {
+  margin: 0 0 10px;
+  color: #e3e9e7;
+}
+.meta-card p,
+.meta-card small {
+  line-height: 1.7;
+  display: block;
+}
+.meta-card small {
+  color: #c8b995;
+}
+.meta-card button {
+  margin-top: 14px;
+}
+.meta-notice {
+  min-height: 26px;
+  color: #dcc797;
+}
+.meta-stats {
+  padding: 16px;
+  background: #24343a;
+  border-radius: 8px;
+}
+.meta-stats span {
+  min-width: 125px;
+  color: #aebec3;
+}
+.meta-stats b {
+  color: #eef3e8;
+}
+.meta-footer {
+  margin-top: 25px;
+  padding-top: 16px;
+  border-top: 1px solid #64778055;
+}
+.meta-empty {
+  padding: 24px;
+  border: 1px dashed #61727c;
+}
+.meta-card button:disabled,
+.meta-options button:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+/* Keep camp navigation and departure accessible at the game's 720px viewport. */
+.slice-app #overlay .meta-tabs .slice-secondary {
+  min-width: 0;
+  padding: 11px 17px;
+  flex: 1;
+  white-space: nowrap;
+}
+.slice-app #overlay .meta-options .slice-secondary {
+  min-width: 0;
+  padding: 12px 16px;
+}
+.slice-app #overlay .meta-tabs .selected {
+  background: #b6924922;
+  border-color: #e9c786;
+  color: #ffe6b2;
+}
+.meta-footer {
+  position: sticky;
+  bottom: -28px;
+  background: #131c25;
+  padding: 14px 0;
+  z-index: 2;
+}
+.camp-hud {
+  position: absolute;
+  left: 4%;
+  right: 4%;
+  top: 4%;
+  padding: 16px 20px;
+  border-left: 3px solid #b9b38d;
+  background: #10191edb;
+  color: #d2ddd6;
+}
+.camp-hud b {
+  font-size: 21px;
+  letter-spacing: 2px;
+}
+.camp-hud span {
+  float: right;
+  color: #e9c786;
+}
+.camp-hud small {
+  display: block;
+  margin-top: 12px;
+  color: #a5b8b7;
+}
+.camp-hud p {
+  font-size: 12px;
+  color: #809998;
+  margin-bottom: 0;
+}
